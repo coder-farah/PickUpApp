@@ -100,3 +100,14 @@ export function fmtHHMM(value: string) {
   const h12 = hh % 12 === 0 ? 12 : hh % 12;
   return `${h12}:${String(mm).padStart(2, "0")} ${hh < 12 ? "AM" : "PM"}`;
 }
+
+/** "Oct 13 · 7:00 PM" — for timelines where the weekday alone is ambiguous. */
+export function fmtStep(date: Date, tz: string) {
+  return format(inZone(date, tz), "MMM d · h:mm a");
+}
+
+/** 48 → "2 days", 3 → "3h" */
+export function fmtHours(h: number) {
+  if (h >= 24 && h % 24 === 0) return `${h / 24} day${h === 24 ? "" : "s"}`;
+  return `${h}h`;
+}

@@ -11,3 +11,6 @@ export const SPORTS: { value: Sport; label: string; defaultCap: number; defaultM
 export function sportLabel(s: Sport) {
   return SPORTS.find((x) => x.value === s)?.label ?? "Game";
 }
+
+const EMOJI: Record<Sport, string> = { soccer: "⚽", basketball: "🏀", volleyball: "🏐", ultimate: "🥏", other: "🏃" };
+export const sportEmoji = (s: Sport) => EMOJI[s];

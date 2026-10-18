@@ -7,7 +7,7 @@ export function GET() {
   return NextResponse.json({
     applinks: {
       details: appIDs.length
-        ? [{ appIDs, components: ["/g/*", "/groups/*", "/join/*", "/i/*"].map((path) => ({ "/": path })) }]
+        ? [{ appIDs, components: ["/g/*", "/groups/*", "/join/*"].map((path) => ({ "/": path })) }]
         : [],
     },
   });

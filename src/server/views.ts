@@ -16,7 +16,8 @@ import type {
 import { gameState, goingCount, myStatusLabel, roomNote } from "@/lib/game-state";
 import { fmtMiles } from "@/lib/geo";
 import { formatPhone } from "@/lib/phone";
-import { dayKey, fmtDay, fmtHHMM, fmtRelative, fmtWhen, inZone, WEEKDAYS_SHORT } from "@/lib/time";
+import { dayKey, fmtDay, fmtHHMM, fmtRelative, fmtShortWhen, fmtStep, fmtTime, fmtWhen, inZone, WEEKDAYS_SHORT } from "@/lib/time";
+import { sportEmoji } from "@/lib/sports";
 import { format } from "date-fns";
 
 /** Turning database rows into the JSON the iPhone app reads (src/lib/api-types.ts). */
@@ -86,6 +87,7 @@ export function cardView(g: GameCardData & { myOfferExpires?: Date | null }, now
 export function gameDetailView(p: GamePageData, viewerId: string | null, now = new Date()): GameDetailView {
   const g = p.game;
   const roster = (s: GamePageData["playing"][number]): RosterView => ({
+    offerExpiresAt: p.canManage && s.status === "offered" && s.userId !== viewerId ? iso(s.offerExpiresAt) : null,
     spotId: s.id,
     userId: s.userId,
     name: s.displayName,
@@ -109,6 +111,23 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
   );
   // Seats held for someone count against the cap too.
   card.room = card.state.key === "cancelled" ? "" : roomNote(g.capacity, p.held);
+  const phase: GameDetailView["game"]["phase"] =
+    g.status === "cancelled"
+      ? "cancelled"
+      : g.status === "completed" || now >= g.endsAt
+        ? "played"
+        : now >= g.startsAt
+          ? "live"
+          : g.status === "scheduled" || now < g.opensAt
+            ? "soon"
+            : "open";
+  const shareUrl = `${env.appUrl}/g/${g.code}`;
+  const shareText = [
+    `${sportEmoji(g.sport)} ${g.title}`,
+    `${fmtWhen(g.startsAt, g.timezone)} · ${g.locationName}`,
+    phase === "cancelled" ? "Cancelled" : `${card.going} going${card.room ? ` · ${card.room}` : ""}`,
+    `RSVP here: ${shareUrl}`,
+  ].join("\n");
   return {
     game: {
       ...card,
@@ -119,9 +138,17 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
       guestsAllowed: g.guestsAllowed,
       visibility: g.visibility,
       cancelReason: g.cancelReason,
-      opensAt: fmtWhen(g.opensAt, g.timezone),
-      decisionAt: g.decisionAt ? fmtWhen(g.decisionAt, g.timezone) : null,
-      shareUrl: `${env.appUrl}/g/${g.code}`,
+      phase,
+      timeRange: `${fmtDay(g.startsAt, g.timezone)} · ${fmtTime(g.startsAt, g.timezone)} – ${fmtTime(g.endsAt, g.timezone)}`,
+      opensAt: fmtShortWhen(g.opensAt, g.timezone),
+      opensIn: fmtRelative(g.opensAt, now),
+      decisionAt: g.decisionAt ? fmtStep(g.decisionAt, g.timezone) : null,
+      lastCall: fmtStep(g.lastCallAt, g.timezone),
+      lastCallPassed: now >= g.lastCallAt,
+      spotsLeft: g.capacity === null ? null : Math.max(g.capacity - p.held, 0),
+      shareUrl,
+      shareText,
+      mapsUrl: `https://maps.apple.com/?q=${encodeURIComponent([g.locationName, g.locationAddress].filter(Boolean).join(", "))}`,
     },
     host: face({ id: p.host.id, name: p.host.name, v: p.host.v }),
     playing: p.playing.map(roster),
@@ -153,7 +180,7 @@ export function scheduleLabel(schedules: string | null | undefined) {
 }
 
 export function crewCardView(c: {
-  group: { id: string; slug: string; name: string; sport: CrewCardView["sport"] };
+  group: { id: string; slug: string; name: string; sport: CrewCardView["sport"]; area?: string | null; city?: string | null };
   members: number;
   schedules?: string | null;
   distance?: number | null;
@@ -167,6 +194,7 @@ export function crewCardView(c: {
     schedule: scheduleLabel(c.schedules),
     members: c.members,
     distance: c.distance != null ? fmtMiles(c.distance) : null,
+    area: c.group.area ?? c.group.city ?? null,
     role: c.role,
   };
 }

@@ -1,0 +1,60 @@
+name: iOS build
+
+# Builds the iPhone app on Expo's Macs (EAS Build) and, for production, sends it to TestFlight.
+# Run it from the Actions tab: Actions > iOS build > Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Build profile
+        type: choice
+        options: [production, preview]
+        default: production
+      submit:
+        description: Send to TestFlight when the build finishes
+        type: boolean
+        default: true
+
+concurrency:
+  group: eas-build-${{ inputs.profile }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Point the app at this environment's server
+        env:
+          PROFILE: ${{ inputs.profile }}
+          API_URL: ${{ inputs.profile == 'production' && vars.API_URL || vars.STAGING_API_URL }}
+          APP_LINK_DOMAIN: ${{ inputs.profile == 'production' && vars.APP_LINK_DOMAIN || vars.STAGING_APP_LINK_DOMAIN }}
+        run: ../.github/scripts/eas-env.sh
+      - name: Fill in the App Store Connect details
+        if: inputs.submit
+        env:
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: ../.github/scripts/eas-submit-config.sh
+      - name: Build
+        run: eas build --platform ios --profile "${{ inputs.profile }}" --non-interactive --wait ${{ inputs.submit && '--auto-submit' || '' }}

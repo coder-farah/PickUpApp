@@ -37,13 +37,11 @@ export const PATCH = api(async (req) => {
     }),
   );
   await saveProfile(user, { name: body.name, username: body.username, photo: body.photo ?? "", removePhoto: body.removePhoto });
-  await db
-    .update(t.users)
-    .set({
-      ...(body.smsEnabled !== undefined ? { smsEnabled: body.smsEnabled } : {}),
-      ...(body.onboarded && !user.onboardedAt ? { onboardedAt: new Date() } : {}),
-    })
-    .where(eq(t.users.id, user.id));
+  const extra = {
+    ...(body.smsEnabled !== undefined ? { smsEnabled: body.smsEnabled } : {}),
+    ...(body.onboarded && !user.onboardedAt ? { onboardedAt: new Date() } : {}),
+  };
+  if (Object.keys(extra).length) await db.update(t.users).set(extra).where(eq(t.users.id, user.id));
   return meView(user.id);
 });
 

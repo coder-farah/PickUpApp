@@ -58,6 +58,8 @@ export type RosterView = {
   broughtBy: string | null;
   status: SpotStatus;
   isMe: boolean;
+  /** Only sent to organizers, for someone else's held spot */
+  offerExpiresAt: string | null;
 };
 
 export type GameDetailView = {
@@ -69,10 +71,24 @@ export type GameDetailView = {
     guestsAllowed: boolean;
     visibility: "public" | "private";
     cancelReason: string | null;
-    /** "Tue, Oct 21 · 7:00 PM" or null */
+    /** Where the game stands for the action panel */
+    phase: "cancelled" | "played" | "live" | "soon" | "open";
+    /** "Tue, Oct 21 · 7:00 PM – 8:30 PM" */
+    timeRange: string;
+    /** "Thu 7:00 PM" and "in 2 days", while RSVPs haven't opened */
     opensAt: string;
+    opensIn: string;
+    /** "Oct 21 · 4:00 PM": called off then if short */
     decisionAt: string | null;
+    /** "Oct 21 · 4:00 PM": from then on, the first to tap gets an open spot */
+    lastCall: string;
+    lastCallPassed: boolean;
+    /** Open spots counting held offers; null without a cap */
+    spotsLeft: number | null;
     shareUrl: string;
+    /** The message to paste in a group chat */
+    shareText: string;
+    mapsUrl: string;
   };
   host: FaceView;
   playing: RosterView[];
@@ -99,6 +115,8 @@ export type CrewCardView = {
   schedule: string;
   members: number;
   distance: string | null;
+  /** "Mission" or "San Francisco" */
+  area: string | null;
   role?: "organizer" | "member";
 };
 
@@ -140,10 +158,23 @@ export type MeView = {
   unread: number;
 };
 
+/** The one game the Home hero shows: a spot held for you beats a game you're in, which beats a waitlist. */
+export type NextUpView = GameCardView & {
+  /** "Tonight", "Today", "Tomorrow" or "Tue, Oct 21" */
+  whenLabel: string;
+  /** "A spot opened and it's held for you", "You're #2 on the waitlist", "3 left · 2 on waitlist"… */
+  note: string;
+  position: number | null;
+};
+
 export type HomeView = {
-  offers: GameCardView[];
-  playing: GameCardView[];
-  other: GameCardView[];
+  /** "Good evening, Pooya" */
+  greeting: string;
+  next: NextUpView | null;
+  alsoPlaying: GameCardView[];
+  openNear: GameCardView[];
+  fromCrews: GameCardView[];
+  area: { label: string; short: string; miles: number };
   crews: CrewCardView[];
   unread: number;
 };

@@ -2,6 +2,7 @@ import { and, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db, t, type DbOrTx } from "./db";
 import { env, smsConfigured } from "./env";
 import { sendSms } from "./twilio";
+import { sendPush, type PushMessage } from "./push";
 
 export type NotificationInput = {
   userId: string;
@@ -22,7 +23,7 @@ export type NotificationInput = {
   gameId?: string | null;
   groupId?: string | null;
   url?: string | null;
-  /** Also send as a text message (if the player hasn't turned texts off). */
+  /** Also alert the player: a push on their iPhone, or a text when they don't have the app. */
   sms?: boolean;
 };
 
@@ -66,8 +67,28 @@ export async function dispatchPending(limit = 100) {
     return items;
   });
 
+  // Players with the app get a push. Everyone else gets a text, unless they turned texts off.
+  const userIds = [...new Set(rows.map((r) => r.n.userId))];
+  const tokens = userIds.length
+    ? await db.select().from(t.pushTokens).where(inArray(t.pushTokens.userId, userIds))
+    : [];
+  const unread = userIds.length
+    ? await db
+        .select({ userId: t.notifications.userId, n: dsql<number>`count(*)::int` })
+        .from(t.notifications)
+        .where(and(inArray(t.notifications.userId, userIds), dsql`${t.notifications.readAt} is null`))
+        .groupBy(t.notifications.userId)
+    : [];
+
   let sent = 0;
+  const pushes: PushMessage[] = [];
   for (const { n, phone, smsEnabled } of rows) {
+    const mine = tokens.filter((tk) => tk.userId === n.userId);
+    if (mine.length) {
+      const badge = unread.find((u) => u.userId === n.userId)?.n;
+      for (const tk of mine) pushes.push({ to: tk.token, title: n.title, body: n.body, url: n.url, badge });
+      continue;
+    }
     if (!smsEnabled || !phone) continue; // Apple sign-ins without a phone only get the inbox
     const text = `${n.title}. ${n.body}${n.url ? ` ${absoluteUrl(n.url)}` : ""}`;
     if (smsConfigured()) {
@@ -81,5 +102,6 @@ export async function dispatchPending(limit = 100) {
       console.log(`[sms → ${phone}] ${text}`);
     }
   }
+  sent += await sendPush(pushes);
   return sent;
 }

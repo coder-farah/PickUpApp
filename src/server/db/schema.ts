@@ -41,6 +41,10 @@ export const users = pgTable("users", {
   areaLng: doublePrecision("area_lng"),
   areaMiles: integer("area_miles").default(10).notNull(),
   onboardedAt: ts("onboarded_at"),
+  // Kept so deleting the account can revoke Sign in with Apple (App Store rule 5.1.1(v)).
+  appleRefreshToken: text("apple_refresh_token"),
+  // Deleted accounts are emptied of personal data but kept, so past games still have a host.
+  deletedAt: ts("deleted_at"),
   createdAt: createdAt(),
 });
 
@@ -232,6 +236,19 @@ export const invites = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index("invites_inviter_idx").on(t.inviterId, t.createdAt), uniqueIndex("invites_inviter_phone_uq").on(t.inviterId, t.phone)],
+);
+
+/** Expo push tokens for the iPhone app. A token belongs to whoever signed in last on that phone. */
+export const pushTokens = pgTable(
+  "push_tokens",
+  {
+    token: text("token").primaryKey(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    platform: text("platform").notNull(),
+    updatedAt: ts("updated_at").defaultNow().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("push_tokens_user_idx").on(t.userId)],
 );
 
 export type User = typeof users.$inferSelect;

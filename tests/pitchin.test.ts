@@ -141,7 +141,7 @@ describe("Sign in with Apple", () => {
   const opts = { nonce: "raw-nonce", clientId: "app.pitchin.web", keys: [jwk], now };
 
   it("accepts a valid token", async () => {
-    expect(await verifyAppleIdToken(token(good), opts)).toEqual({ sub: "001234.abc", email: "p@example.com" });
+    expect(await verifyAppleIdToken(token(good), opts)).toEqual({ sub: "001234.abc", email: "p@example.com", aud: "app.pitchin.web" });
   });
 
   it("rejects a wrong nonce, audience, expiry or signature", async () => {

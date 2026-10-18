@@ -1,6 +1,6 @@
 /**
- * Demo data: a handful of real-feeling SF groups with games in different states
- * (filling up, on, full with a waitlist, a spot on offer, a one-time game).
+ * Demo data: a handful of real-feeling SF crews with games in different states
+ * (filling up, on, full with a waitlist, a spot on offer, a big game with no cap, a one-time game).
  * Sign in as the organizer with phone (415) 555-0100 and code 000000 in development.
  */
 import "dotenv/config";
@@ -14,7 +14,7 @@ import { weeklyOccurrences } from "../src/lib/time";
 const TZ = "America/Los_Angeles";
 const now = new Date();
 
-await sql`truncate notifications, spots, games, schedules, group_members, groups, sessions, login_codes, users cascade`;
+await sql`truncate invites, notifications, spots, games, schedules, group_members, groups, sessions, login_codes, users cascade`;
 
 const names = [
   "Pooya F.", "Marco R.", "Jess L.", "Dani K.", "Sam O.", "Priya N.", "Luis M.", "Ana P.", "Theo B.", "Kenji S.",
@@ -23,7 +23,14 @@ const names = [
 ];
 const users = await db
   .insert(t.users)
-  .values(names.map((name, i) => ({ name, phone: `+1415555${String(100 + i).padStart(4, "0")}` })))
+  .values(
+    names.map((name, i) => ({
+      name,
+      phone: `+1415555${String(100 + i).padStart(4, "0")}`,
+      username: name.toLowerCase().replace(/[^a-z]+/g, ".").replace(/\.$/, ""),
+      onboardedAt: now,
+    })),
+  )
   .returning();
 const [pooya] = users;
 const players = users.slice(1);
@@ -36,19 +43,21 @@ type GroupSeed = {
   description: string;
   weekday: number;
   time: string;
-  cap: number;
+  cap: number | null; // null: no cap, no waitlist
   min: number;
+  lat: number;
+  lng: number;
   opensHoursBefore: number;
   fill: number; // players to add once open
   organizer?: (typeof users)[number];
 };
 
 const seeds: GroupSeed[] = [
-  { name: "Tuesday 7v7", sport: "soccer", field: "Crocker Amazon, Field 2", area: "Excelsior", description: "Friendly intermediate 7v7 under the lights. Bring a light and a dark shirt.", weekday: 2, time: "19:00", cap: 14, min: 10, opensHoursBefore: 168, fill: 16 },
-  { name: "Mission Midweek", sport: "soccer", field: "Garfield Square", area: "Mission", description: "Small-sided, all levels, fast games to 2.", weekday: 3, time: "18:30", cap: 12, min: 8, opensHoursBefore: 168, fill: 7, organizer: players[3] },
-  { name: "Saturday Morning 11s", sport: "soccer", field: "Beach Chalet Fields", area: "Outer Richmond", description: "Full-sided 11v11. Competitive but friendly. Cleats, no metal studs.", weekday: 6, time: "09:00", cap: 24, min: 18, opensHoursBefore: 48, fill: 0 },
-  { name: "Kezar Sunday Pickup", sport: "soccer", field: "Kezar Stadium", area: "Haight", description: "Relaxed Sunday run. Beginners welcome.", weekday: 0, time: "10:30", cap: 18, min: 10, opensHoursBefore: 168, fill: 9, organizer: players[6] },
-  { name: "Hamilton Hoops", sport: "basketball", field: "Hamilton Rec Center", area: "Western Addition", description: "5v5 full court, winners stay on.", weekday: 4, time: "19:30", cap: 15, min: 10, opensHoursBefore: 168, fill: 11, organizer: players[9] },
+  { name: "Tuesday 7v7", sport: "soccer", field: "Crocker Amazon, Field 2", area: "Excelsior", description: "Friendly intermediate 7v7 under the lights. Bring a light and a dark shirt.", weekday: 2, time: "19:00", cap: 14, min: 10, opensHoursBefore: 168, fill: 16, lat: 37.7128, lng: -122.4469 },
+  { name: "Mission Midweek", sport: "soccer", field: "Garfield Square", area: "Mission", description: "Small-sided, all levels, fast games to 2.", weekday: 3, time: "18:30", cap: 12, min: 8, opensHoursBefore: 168, fill: 7, organizer: players[3], lat: 37.7505, lng: -122.4134 },
+  { name: "Saturday Morning 11s", sport: "soccer", field: "Beach Chalet Fields", area: "Outer Richmond", description: "Full-sided 11v11. Competitive but friendly. Cleats, no metal studs.", weekday: 6, time: "09:00", cap: 24, min: 18, opensHoursBefore: 48, fill: 0, lat: 37.7697, lng: -122.5101 },
+  { name: "Kezar Sunday Pickup", sport: "soccer", field: "Kezar Stadium", area: "Haight", description: "Relaxed Sunday run, as many teams as show up. Beginners welcome.", weekday: 0, time: "10:30", cap: null, min: 10, opensHoursBefore: 168, fill: 26, organizer: players[6], lat: 37.7669, lng: -122.4573 },
+  { name: "Hamilton Hoops", sport: "basketball", field: "Hamilton Rec Center", area: "Western Addition", description: "5v5 full court, winners stay on.", weekday: 4, time: "19:30", cap: 15, min: 10, opensHoursBefore: 168, fill: 11, organizer: players[9], lat: 37.7839, lng: -122.4369 },
 ];
 
 for (const s of seeds) {
@@ -62,6 +71,8 @@ for (const s of seeds) {
       description: s.description,
       homeField: s.field,
       area: s.area,
+      lat: s.lat,
+      lng: s.lng,
       inviteCode: shortCode(10),
       createdBy: organizer.id,
     })
@@ -78,6 +89,8 @@ for (const s of seeds) {
     weekday: s.weekday,
     startTime: s.time,
     locationName: s.field,
+    lat: s.lat,
+    lng: s.lng,
     capacity: s.cap,
     minPlayers: s.min,
     opensHoursBefore: s.opensHoursBefore,
@@ -126,6 +139,8 @@ const [once] = await db
     ...gameTimesFor(friday, { durationMinutes: 90, opensHoursBefore: 0, decisionHoursBefore: 6, lastCallHours: 3 }),
     opensAt: now,
     locationName: "Potrero Hill Rec Center",
+    lat: 37.7605,
+    lng: -122.3987,
     capacity: 10,
     minPlayers: 8,
     status: "open",

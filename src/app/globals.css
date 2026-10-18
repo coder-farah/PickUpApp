@@ -1,56 +1,65 @@
 @import "tailwindcss";
 
 /*
- * KickOff design tokens.
- * Paper-and-pitch: cool off-white paper, deep pitch green for action, one hot
- * "signal" orange reserved for urgency. Archivo's width axis does the athletic
- * work: expanded for scoreboard numbers and headings, normal width for reading.
+ * Pitchin design tokens.
+ * Paper and pitch night: warm off-white paper, a deep pitch green for hero panels and the tab bar,
+ * and lime from the logo, kept for what's yours and what's live. Flare is for urgency only.
+ * Type: Archivo condensed for titles, times and counts; Geist for reading; Geist Mono for labels.
  */
 :root {
-  --bg: #f3f4ef;
+  --bg: #f2f1ec;
   --surface: #ffffff;
-  --surface-2: #f8f9f5;
-  --ink: #0d1512;
-  --ink-2: #3a4540;
-  --muted: #69736e;
-  --line: #e2e6df;
-  --line-strong: #cdd4cb;
-  --pitch: #0e6b4a;
-  --pitch-hover: #0b5a3e;
+  --surface-2: #e9e8e2;
+  --ink: #0c0d0c;
+  --ink-2: #5b5e58;
+  --muted: #6f726b;
+  --line: rgb(12 13 12 / 0.09);
+  --line-strong: rgb(12 13 12 / 0.17);
+  --lime: #c8f25a;
+  --lime-ink: #0c0d0c;
+  --pitch: #3f6b00;
   --pitch-ink: #ffffff;
-  --pitch-soft: #e1efe7;
-  --signal: #f2542d;
-  --signal-soft: #fde8e1;
-  --amber: #a86200;
-  --amber-soft: #fbefd9;
-  --danger: #c3311d;
-  --danger-soft: #fbe5e1;
-  --shadow: 0 1px 2px rgb(13 21 18 / 0.04), 0 8px 24px -12px rgb(13 21 18 / 0.12);
-  --notch: var(--bg);
+  --pitch-soft: #eef7d3;
+  --night: #0e2b1d;
+  --night-2: #16392a;
+  --nav: #0b2317;
+  --btn: #0c0d0c;
+  --btn-ink: #ffffff;
+  --signal: #e5482a;
+  --signal-soft: #fceae3;
+  --amber: #8a5a00;
+  --amber-soft: #f6ecd6;
+  --danger: #c8361b;
+  --danger-soft: #fceae3;
+  --shadow: 0 0 0 1px rgb(12 13 12 / 0.07);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #090d0b;
-    --surface: #111714;
-    --surface-2: #161d1a;
-    --ink: #edf2ef;
-    --ink-2: #bcc6c1;
-    --muted: #87938d;
-    --line: #1f2925;
-    --line-strong: #2d3934;
-    --pitch: #35c98b;
-    --pitch-hover: #4fd89c;
-    --pitch-ink: #03140c;
-    --pitch-soft: #0f2a1f;
-    --signal: #ff7a52;
-    --signal-soft: #36190f;
-    --amber: #f3b54a;
-    --amber-soft: #2d220f;
-    --danger: #ff7c68;
-    --danger-soft: #3a1712;
-    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 12px 32px -16px rgb(0 0 0 / 0.6);
+    --bg: #0b0c0b;
+    --surface: #151614;
+    --surface-2: #23251f;
+    --ink: #f2f1ec;
+    --ink-2: #a2a59d;
+    --muted: #868981;
+    --line: rgb(255 255 255 / 0.08);
+    --line-strong: rgb(255 255 255 / 0.15);
+    --pitch: #c8f25a;
+    --pitch-ink: #0b0c0b;
+    --pitch-soft: rgb(200 242 90 / 0.12);
+    --night: #10261a;
+    --night-2: #173322;
+    --nav: #0e2216;
+    --btn: #f2f1ec;
+    --btn-ink: #0b0c0b;
+    --signal: #ff7452;
+    --signal-soft: rgb(255 116 82 / 0.14);
+    --amber: #f0b64a;
+    --amber-soft: rgb(240 182 74 / 0.12);
+    --danger: #ff7452;
+    --danger-soft: rgb(255 116 82 / 0.14);
+    --shadow: 0 0 0 1px rgb(255 255 255 / 0.07);
     color-scheme: dark;
   }
 }
@@ -64,20 +73,27 @@
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-lime: var(--lime);
+  --color-lime-ink: var(--lime-ink);
   --color-pitch: var(--pitch);
-  --color-pitch-hover: var(--pitch-hover);
   --color-pitch-ink: var(--pitch-ink);
   --color-pitch-soft: var(--pitch-soft);
+  --color-night: var(--night);
+  --color-night-2: var(--night-2);
+  --color-nav: var(--nav);
+  --color-btn: var(--btn);
+  --color-btn-ink: var(--btn-ink);
   --color-signal: var(--signal);
   --color-signal-soft: var(--signal-soft);
   --color-amber: var(--amber);
   --color-amber-soft: var(--amber-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: var(--font-mono-face), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-archivo), var(--font-geist), sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
   --shadow-card: var(--shadow);
-  --radius-card: 18px;
+  --radius-card: 20px;
 }
 
 @layer base {
@@ -88,7 +104,6 @@
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font-sans);
-    font-variation-settings: "wdth" 100;
     -webkit-font-smoothing: antialiased;
   }
   h1,
@@ -101,19 +116,29 @@
     outline-offset: 2px;
   }
   ::selection {
-    background: var(--pitch-soft);
+    background: var(--lime);
+    color: var(--lime-ink);
   }
 }
 
-@utility font-display {
-  font-family: var(--font-sans);
-  font-variation-settings: "wdth" 125;
+/* Condensed display type for titles, times and counts. */
+@utility disp {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 72;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 0.95;
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  line-height: 0.9;
+}
+@utility font-display {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 72;
+  font-weight: 800;
+  letter-spacing: -0.005em;
+  line-height: 0.92;
 }
 @utility font-wide {
-  font-variation-settings: "wdth" 112;
+  letter-spacing: -0.01em;
 }
 @utility nums {
   font-variant-numeric: tabular-nums;
@@ -121,42 +146,90 @@
 @utility eyebrow {
   font-family: var(--font-mono);
   font-size: 11px;
-  letter-spacing: 0.12em;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
+}
+@utility mono {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 @utility safe-bottom {
   padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
 
-/* Ticket perforation between the date stub and the body of a game card. */
-@utility perforation {
-  background-image: linear-gradient(to bottom, var(--line-strong) 50%, transparent 50%);
-  background-size: 1px 8px;
-  background-repeat: repeat-y;
-  background-position: center;
+/*
+ * Hero panels: pitch night that fades into the page, so the top and the content read as one surface.
+ */
+@utility night-fade {
+  background: linear-gradient(
+    180deg,
+    var(--night) 0,
+    var(--night) calc(100% - 128px),
+    color-mix(in srgb, var(--night) 45%, var(--bg)) calc(100% - 70px),
+    var(--bg) 100%
+  );
 }
 
 @keyframes rise {
   from {
     opacity: 0.001;
-    transform: translateY(6px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
     transform: none;
   }
 }
+@keyframes live {
+  0% {
+    box-shadow: 0 0 0 0 rgb(200 242 90 / 0.55);
+  }
+  100% {
+    box-shadow: 0 0 0 7px rgb(200 242 90 / 0);
+  }
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
 @media (prefers-reduced-motion: no-preference) {
   .rise {
-    animation: rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .live-dot {
+    animation: live 1.6s ease-out infinite;
+  }
+  .sheet-up {
+    animation: sheet-up 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .spin-slow {
+    animation: spin-slow 90s linear infinite;
   }
 }
 
 /* Initials avatars: hue comes from the name, lightness from the theme. */
 .avatar {
-  background: oklch(0.93 0.045 var(--h));
-  color: oklch(0.36 0.09 var(--h));
+  background: oklch(0.92 0.04 var(--h));
+  color: oklch(0.34 0.08 var(--h));
 }
 @media (prefers-color-scheme: dark) {
   .avatar {

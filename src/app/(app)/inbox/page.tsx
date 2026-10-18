@@ -13,8 +13,8 @@ import { cn } from "@/lib/cn";
 export const metadata: Metadata = { title: "Inbox" };
 
 const icons: Record<string, { icon: React.ReactNode; tone: string }> = {
-  spot_offered: { icon: <Sparkles className="size-4" />, tone: "bg-signal-soft text-signal" },
-  last_call: { icon: <Megaphone className="size-4" />, tone: "bg-signal-soft text-signal" },
+  spot_offered: { icon: <Sparkles className="size-4" />, tone: "bg-lime text-lime-ink" },
+  last_call: { icon: <Megaphone className="size-4" />, tone: "bg-lime text-lime-ink" },
   promoted: { icon: <CalendarCheck className="size-4" />, tone: "bg-pitch-soft text-pitch" },
   game_on: { icon: <CalendarCheck className="size-4" />, tone: "bg-pitch-soft text-pitch" },
   game_confirmed: { icon: <CalendarCheck className="size-4" />, tone: "bg-pitch-soft text-pitch" },
@@ -46,16 +46,19 @@ export default async function InboxPage() {
           When a game opens, turns on, or a spot is held for you, it shows up here.
         </EmptyState>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col">
           {items.map((n) => {
             const style = icons[n.kind] ?? { icon: <Bell className="size-4" />, tone: "bg-surface-2 text-ink-2" };
             const body = (
-              <div className={cn("flex gap-3 rounded-2xl border border-line bg-surface p-4 transition-colors", n.url && "hover:border-line-strong", !n.readAt && "border-l-4 border-l-pitch")}>
-                <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl", style.tone)}>{style.icon}</span>
+              <div className={cn("flex gap-3 border-b border-line py-4 transition-colors")}>
+                <span className={cn("relative grid size-10 shrink-0 place-items-center rounded-full", style.tone)}>
+                  {style.icon}
+                  {!n.readAt && <span className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-lime ring-2 ring-bg" />}
+                </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-3">
-                    <p className="truncate font-semibold">{n.title}</p>
-                    <span className="shrink-0 font-mono text-[11px] text-muted">{fmtRelative(n.createdAt, now)}</span>
+                    <p className="truncate font-medium">{n.title}</p>
+                    <span className="mono shrink-0 text-[10.5px] text-muted">{fmtRelative(n.createdAt, now)}</span>
                   </div>
                   <p className="text-[14px] text-muted">{n.body}</p>
                 </div>

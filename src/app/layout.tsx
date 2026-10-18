@@ -1,15 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Archivo, JetBrains_Mono } from "next/font/google";
+import { Archivo, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 const archivo = Archivo({ subsets: ["latin"], axes: ["wdth"], variable: "--font-archivo", display: "swap" });
-const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono-face", display: "swap" });
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? "http://localhost:3000"),
-  title: { default: "KickOff · Pickup games that run themselves", template: "%s · KickOff" },
-  description: "Weekly pickup games that post themselves, cap the roster and fill drop-outs from the waitlist.",
-  appleWebApp: { capable: true, title: "KickOff", statusBarStyle: "default" },
+  title: { default: "Pitchin · Find a game. Show up. Play.", template: "%s · Pitchin" },
+  description: "Pickup games near you, with weekly games that post themselves, capped rosters and a waitlist that fills drop-outs.",
+  appleWebApp: { capable: true, title: "Pitchin", statusBarStyle: "black-translucent" },
+  icons: { icon: "/icon.svg", apple: "/icon.svg" },
 };
 
 export const viewport: Viewport = {
@@ -17,14 +19,14 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f3f4ef" },
-    { media: "(prefers-color-scheme: dark)", color: "#090d0b" },
+    { media: "(prefers-color-scheme: light)", color: "#0e2b1d" },
+    { media: "(prefers-color-scheme: dark)", color: "#10261a" },
   ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${archivo.variable} ${mono.variable}`}>
+    <html lang="en" className={`${archivo.variable} ${geist.variable} ${mono.variable}`}>
       <body className="min-h-dvh">{children}</body>
     </html>
   );

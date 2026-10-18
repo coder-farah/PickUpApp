@@ -6,7 +6,7 @@ import { requireUser } from "@/server/auth";
 import { getManagedGroups } from "@/server/queries";
 import { createGameAction, createGroupAction } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/client";
-import { Card, Field, Input, PageHeader, Select, Textarea } from "@/components/ui";
+import { Field, Input, PageHeader, Select, Switch, Textarea } from "@/components/ui";
 import { RulesFields, WeeklyFields } from "@/components/RulesFields";
 import { SPORTS } from "@/lib/sports";
 import { DEFAULT_TZ, inZone } from "@/lib/time";
@@ -20,19 +20,19 @@ export default async function NewPage({ searchParams }: Props) {
   const params = await searchParams;
   const user = await requireUser("/new");
   const managed = await getManagedGroups(user.id);
-  const type = params.group || params.type === "once" ? "once" : "group";
+  const type = params.type === "group" && !params.group ? "group" : "once";
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-8">
-      <PageHeader eyebrow="Create" title={type === "group" ? "Start a weekly game" : "Post a one-time game"}>
+      <PageHeader eyebrow="Host" title={type === "group" ? "Start a weekly game" : "Post a game"}>
         {type === "group"
-          ? "Set it up once. Every week the game opens on its own and your group gets a text."
-          : "A single game with a cap, a waitlist and a link to share."}
+          ? "Set it up once. Every week the game opens on its own and your crew gets a text."
+          : "One game on one date, with a link to share."}
       </PageHeader>
 
       <div className="grid grid-cols-2 gap-3">
-        <TypeCard href="/new?type=group" active={type === "group"} icon={<Repeat className="size-5" />} title="Weekly" body="Repeats every week. Posts itself." />
         <TypeCard href="/new?type=once" active={type === "once"} icon={<CalendarDays className="size-5" />} title="One-time" body="A single game on one date." />
+        <TypeCard href="/new?type=group" active={type === "group"} icon={<Repeat className="size-5" />} title="Weekly crew" body="Repeats every week. Posts itself." />
       </div>
 
       {type === "group" ? <GroupForm /> : <OnceForm groups={managed} preselect={params.group} />}
@@ -45,23 +45,23 @@ function TypeCard({ href, active, icon, title, body }: { href: string; active: b
     <Link
       href={href}
       className={cn(
-        "flex flex-col gap-2 rounded-[var(--radius-card)] border-2 p-4 transition-colors sm:p-5",
-        active ? "border-pitch bg-pitch-soft/50" : "border-line bg-surface hover:border-line-strong",
+        "flex flex-col gap-2 rounded-[var(--radius-card)] p-4 transition-colors sm:p-5",
+        active ? "bg-night text-white" : "bg-surface shadow-card",
       )}
     >
-      <span className={cn("grid size-9 place-items-center rounded-xl", active ? "bg-pitch text-pitch-ink" : "bg-surface-2 text-ink-2")}>{icon}</span>
-      <span className="font-wide text-[17px] font-bold">{title}</span>
-      <span className="text-[13.5px] text-muted">{body}</span>
+      <span className={cn("grid size-9 place-items-center rounded-full", active ? "bg-lime text-lime-ink" : "bg-surface-2 text-ink-2")}>{icon}</span>
+      <span className="disp text-[24px]">{title}</span>
+      <span className={cn("text-[13.5px]", active ? "text-white/60" : "text-muted")}>{body}</span>
     </Link>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <Card className="flex flex-col gap-5 p-5 sm:p-7">
-      <h2 className="font-wide text-[13px] font-bold tracking-[0.08em] text-ink-2 uppercase">{title}</h2>
+    <section className="flex flex-col gap-5 border-t border-line pt-6">
+      <h2 className="disp text-[28px]">{title}</h2>
       {children}
-    </Card>
+    </section>
   );
 }
 
@@ -80,7 +80,7 @@ function SportSelect({ id }: { id: string }) {
 function GroupForm() {
   return (
     <ActionForm action={createGroupAction} className="gap-5">
-      <Section title="The group">
+      <Section title="The crew">
         <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
           <Field label="Name" htmlFor="name" hint="What everyone already calls it.">
             <Input id="name" name="name" placeholder="Tuesday Night 7v7" required maxLength={60} />
@@ -93,6 +93,9 @@ function GroupForm() {
           <Field label="Home field or court" htmlFor="locationName">
             <Input id="locationName" name="locationName" placeholder="Crocker Amazon, Field 2" required />
           </Field>
+          <Field label="Address" htmlFor="locationAddress" hint="Puts your crew on the map in Explore.">
+            <Input id="locationAddress" name="locationAddress" placeholder="799 Moscow St" />
+          </Field>
           <Field label="Neighborhood" htmlFor="area">
             <Input id="area" name="area" placeholder="Excelsior" />
           </Field>
@@ -102,8 +105,8 @@ function GroupForm() {
         </Field>
         <Field label="Who can find it" htmlFor="visibility">
           <Select id="visibility" name="visibility" defaultValue="public">
-            <option value="public">Anyone. List it in Discover</option>
-            <option value="private">Only people with the invite link</option>
+            <option value="public">Anyone. List it in Explore</option>
+            <option value="private">Invite only. People with the link</option>
           </Select>
         </Field>
       </Section>
@@ -119,7 +122,7 @@ function GroupForm() {
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[13px] text-muted">You can add more weekly games, like a Saturday one, after this.</p>
         <SubmitButton size="lg" pendingLabel="Setting up">
-          Create group
+          Create crew
         </SubmitButton>
       </div>
     </ActionForm>
@@ -159,7 +162,7 @@ function OnceForm({ groups, preselect }: { groups: { id: string; name: string }[
           <Field label="Field or court" htmlFor="locationName">
             <Input id="locationName" name="locationName" placeholder="Garfield Square" required />
           </Field>
-          <Field label="Address" htmlFor="locationAddress" hint="Optional. Helps with directions.">
+          <Field label="Address" htmlFor="locationAddress" hint="Puts the game on the map in Explore.">
             <Input id="locationAddress" name="locationAddress" placeholder="Harrison St & 25th St" />
           </Field>
         </div>
@@ -170,13 +173,13 @@ function OnceForm({ groups, preselect }: { groups: { id: string; name: string }[
 
       <Section title="Roster rules">
         <RulesFields />
-        <label className="flex items-start gap-3 rounded-xl border border-line p-3.5">
-          <input name="autoCancel" type="checkbox" defaultChecked className="mt-0.5 size-4 accent-[var(--pitch)]" />
+        <label className="flex items-start gap-3 rounded-2xl bg-surface p-4 shadow-card">
+          <input name="autoCancel" type="checkbox" defaultChecked className="mt-0.5 size-4 accent-[var(--night)]" />
           <span className="flex flex-1 flex-col gap-2">
-            <span className="text-[14.5px] font-semibold">Cancel automatically if we&apos;re short</span>
+            <span className="text-[15px] font-medium">Call it off if we&apos;re short</span>
             <span className="flex items-center gap-2 text-[13.5px] text-muted">
               Decide
-              <select name="decisionHoursBefore" defaultValue="4" className="h-8 rounded-lg border border-line-strong bg-surface px-2 text-ink">
+              <select name="decisionHoursBefore" defaultValue="4" className="h-8 rounded-full border border-line bg-surface px-2 text-ink">
                 <option value="2">2 hours</option>
                 <option value="4">4 hours</option>
                 <option value="8">8 hours</option>
@@ -190,9 +193,9 @@ function OnceForm({ groups, preselect }: { groups: { id: string; name: string }[
 
       <Section title="Sharing">
         {groups.length > 0 && (
-          <Field label="Post in a group" htmlFor="groupId" hint="Members get a text about it.">
+          <Field label="Post in a crew" htmlFor="groupId" hint="Members get a text about it.">
             <Select id="groupId" name="groupId" defaultValue={preselect ?? ""}>
-              <option value="">No group</option>
+              <option value="">No crew</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>
                   {g.name}
@@ -203,14 +206,11 @@ function OnceForm({ groups, preselect }: { groups: { id: string; name: string }[
         )}
         <Field label="Who can find it" htmlFor="visibility">
           <Select id="visibility" name="visibility" defaultValue="public">
-            <option value="public">Anyone. List it in Discover</option>
-            <option value="private">Only people with the link</option>
+            <option value="public">Anyone. List it in Explore</option>
+            <option value="private">Invite only. People with the link</option>
           </Select>
         </Field>
-        <label className="flex items-center gap-3 text-[14.5px]">
-          <input name="hostPlays" type="checkbox" defaultChecked className="size-4 accent-[var(--pitch)]" />
-          I&apos;m playing too. Put me on the roster.
-        </label>
+        <Switch name="hostPlays" defaultChecked label="I'm playing too" hint="Puts you on the roster." />
       </Section>
 
       <div className="flex justify-end">

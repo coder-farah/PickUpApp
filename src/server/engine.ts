@@ -66,6 +66,9 @@ function assertRsvpOpen(g: Game, now: Date) {
 
 const when = (g: Game) => fmtWhen(g.startsAt, g.timezone);
 
+/** A game without a cap always has room, so it never has a waitlist. */
+export const hasRoom = (capacity: number | null, held: number) => capacity === null || held < capacity;
+
 // ─── Player actions ───────────────────────────────────────────────────────────
 
 /** "I'm in". You get a spot if one is free and nobody is waiting, otherwise you join the waitlist. */
@@ -81,7 +84,7 @@ export async function join(gameId: string, userId: string, now = new Date()) {
     if (existing && existing.status !== "out") return { status: existing.status, changed: false };
 
     const c = await spotCounts(tx, gameId);
-    const status: Spot["status"] = c.held < g.capacity && c.waitlist === 0 ? "in" : "waitlist";
+    const status: Spot["status"] = hasRoom(g.capacity, c.held) && c.waitlist === 0 ? "in" : "waitlist";
     const values = {
       status,
       queuedAt: now,
@@ -118,7 +121,7 @@ export async function addGuest(gameId: string, userId: string, guestName: string
     }
 
     const c = await spotCounts(tx, gameId);
-    const status: Spot["status"] = c.held < g.capacity && c.waitlist === 0 ? "in" : "waitlist";
+    const status: Spot["status"] = hasRoom(g.capacity, c.held) && c.waitlist === 0 ? "in" : "waitlist";
     await tx.insert(t.spots).values({
       gameId,
       userId,
@@ -203,7 +206,7 @@ export async function claim(spotId: string, actorId: string, now = new Date()) {
     } else if (spot.status === "waitlist") {
       const c = await spotCounts(tx, g.id);
       const lastCall = now >= g.lastCallAt;
-      if (!(lastCall && c.held < g.capacity)) {
+      if (!(lastCall && hasRoom(g.capacity, c.held))) {
         throw new GameError("There's no open spot right now. We'll text you when one opens.");
       }
     } else {
@@ -244,13 +247,16 @@ export async function cancelGame(gameId: string, actorId: string, reason: string
   });
 }
 
-export async function setCapacity(gameId: string, actorId: string, capacity: number, now = new Date()) {
-  if (!Number.isInteger(capacity) || capacity < 2 || capacity > 60) throw new GameError("Pick a cap between 2 and 60.");
+/** Change the cap, or pass `null` to remove it. Raising or removing it moves people up from the waitlist. */
+export async function setCapacity(gameId: string, actorId: string, capacity: number | null, now = new Date()) {
+  if (capacity !== null && (!Number.isInteger(capacity) || capacity < 2 || capacity > 200)) {
+    throw new GameError("Pick a cap between 2 and 200.");
+  }
   return db.transaction(async (tx) => {
     const g = await lockGame(tx, gameId);
     if (!(await isManager(tx, g, actorId))) throw new GameError("Only the host can change the cap.");
     await tx.update(t.games).set({ capacity }).where(eq(t.games.id, gameId));
-    if (capacity > g.capacity) await promote(tx, { ...g, capacity }, now);
+    if (capacity === null || g.capacity === null || capacity > g.capacity) await promote(tx, { ...g, capacity }, now);
   });
 }
 
@@ -292,8 +298,7 @@ export async function promote(tx: Tx, g: Game, now: Date, skip: string[] = []) {
 
   for (;;) {
     const c = await spotCounts(tx, fresh.id);
-    const free = fresh.capacity - c.held;
-    if (free <= 0) return;
+    if (!hasRoom(fresh.capacity, c.held)) return;
 
     const waiting = await tx
       .select()
@@ -303,7 +308,7 @@ export async function promote(tx: Tx, g: Game, now: Date, skip: string[] = []) {
     const queue = waiting.filter((s) => !skip.includes(s.id));
     if (queue.length === 0) return;
 
-    if (now >= fresh.lastCallAt) {
+    if (now >= fresh.lastCallAt && fresh.capacity !== null) {
       const users = [...new Set(queue.map((s) => s.userId))];
       await queueNotifications(
         tx,
@@ -323,7 +328,8 @@ export async function promote(tx: Tx, g: Game, now: Date, skip: string[] = []) {
 
     const next = queue[0];
     const who = next.guestName ? `${next.guestName} (your guest)` : "you";
-    if (fresh.claimMinutes === 0) {
+    // Without a cap there's nothing to hold, so everyone waiting is simply in.
+    if (fresh.claimMinutes === 0 || fresh.capacity === null) {
       await tx
         .update(t.spots)
         .set({ status: "in", confirmedAt: now, offerExpiresAt: null })

@@ -6,7 +6,7 @@ import { db, t } from "@/server/db";
 import { and, eq } from "drizzle-orm";
 import { joinGroupAction } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/client";
-import { Avatar } from "@/components/Avatar";
+import { initials } from "@/components/Avatar";
 import { Card } from "@/components/ui";
 import { sportLabel } from "@/lib/sports";
 
@@ -23,9 +23,9 @@ export default async function JoinPage({ params }: { params: Promise<{ invite: s
     <div className="mx-auto flex max-w-md flex-col gap-6 pt-6">
       <Card className="rise flex flex-col items-center gap-5 p-8 text-center">
         <span className="eyebrow">You&apos;re invited</span>
-        <Avatar name={group.name} seed={group.id} size={84} />
+        <span className="disp grid size-20 place-items-center rounded-[30%] bg-night text-[34px] text-lime">{initials(group.name)}</span>
         <div className="flex flex-col gap-2">
-          <h1 className="font-display text-[40px] uppercase">{group.name}</h1>
+          <h1 className="disp text-[48px]">{group.name}</h1>
           <p className="flex items-center justify-center gap-1.5 text-[14px] text-muted">
             <MapPin className="size-4" /> {sportLabel(group.sport)} · {group.homeField ?? group.city}
           </p>
@@ -33,7 +33,7 @@ export default async function JoinPage({ params }: { params: Promise<{ invite: s
         <p className="text-[15px] text-ink-2">Join to get a text when each week&apos;s game opens, and RSVP in one tap.</p>
         <ActionForm action={joinGroupAction} hidden={{ invite, group: "" }} className="w-full">
           <SubmitButton size="lg" className="w-full">
-            {user ? "Join the group" : "Join with your phone number"}
+            {user ? "Join the crew" : "Sign in to join"}
           </SubmitButton>
         </ActionForm>
       </Card>

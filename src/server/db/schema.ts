@@ -1,5 +1,7 @@
 import {
   boolean,
+  customType,
+  doublePrecision,
   index,
   integer,
   pgEnum,
@@ -14,6 +16,7 @@ import { sql } from "drizzle-orm";
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 const ts = (name: string) => timestamp(name, { withTimezone: true });
+const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
 
 export const sportEnum = pgEnum("sport", ["soccer", "basketball", "volleyball", "ultimate", "other"]);
 export const visibilityEnum = pgEnum("visibility", ["public", "private"]);
@@ -21,11 +24,23 @@ export const memberRoleEnum = pgEnum("member_role", ["organizer", "member"]);
 export const gameStatusEnum = pgEnum("game_status", ["scheduled", "open", "on", "cancelled", "completed"]);
 export const spotStatusEnum = pgEnum("spot_status", ["in", "waitlist", "offered", "out"]);
 
+/** A player. Signs in with a phone number (Twilio Verify) or Sign in with Apple, so either can be missing. */
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
-  phone: text("phone").notNull().unique(),
+  phone: text("phone").unique(),
+  appleSub: text("apple_sub").unique(),
+  email: text("email"),
   name: text("name"),
+  username: text("username").unique(), // lowercase, without the @
+  avatar: bytea("avatar"), // 256px JPEG, served from /api/avatar/{id}
+  avatarVersion: integer("avatar_version").default(0).notNull(),
   smsEnabled: boolean("sms_enabled").default(true).notNull(),
+  // Where Explore searches by default.
+  areaLabel: text("area_label"),
+  areaLat: doublePrecision("area_lat"),
+  areaLng: doublePrecision("area_lng"),
+  areaMiles: integer("area_miles").default(10).notNull(),
+  onboardedAt: ts("onboarded_at"),
   createdAt: createdAt(),
 });
 
@@ -64,6 +79,8 @@ export const groups = pgTable("groups", {
   homeField: text("home_field"),
   area: text("area"),
   city: text("city").default("San Francisco").notNull(),
+  lat: doublePrecision("lat"),
+  lng: doublePrecision("lng"),
   timezone: text("timezone").default("America/Los_Angeles").notNull(),
   visibility: visibilityEnum("visibility").default("public").notNull(),
   inviteCode: text("invite_code").notNull().unique(),
@@ -94,7 +111,9 @@ export const schedules = pgTable(
     durationMinutes: integer("duration_minutes").default(90).notNull(),
     locationName: text("location_name").notNull(),
     locationAddress: text("location_address"),
-    capacity: integer("capacity").notNull(),
+    lat: doublePrecision("lat"),
+    lng: doublePrecision("lng"),
+    capacity: integer("capacity"), // null: no cap and no waitlist
     minPlayers: integer("min_players").notNull(),
     opensHoursBefore: integer("opens_hours_before").default(48).notNull(),
     decisionHoursBefore: integer("decision_hours_before").default(4).notNull(),
@@ -127,7 +146,9 @@ export const games = pgTable(
     lastCallAt: ts("last_call_at").notNull(),
     locationName: text("location_name").notNull(),
     locationAddress: text("location_address"),
-    capacity: integer("capacity").notNull(),
+    lat: doublePrecision("lat"),
+    lng: doublePrecision("lng"),
+    capacity: integer("capacity"), // null: no cap and no waitlist
     minPlayers: integer("min_players").notNull(),
     claimMinutes: integer("claim_minutes").default(30).notNull(),
     guestsAllowed: boolean("guests_allowed").default(true).notNull(),
@@ -195,10 +216,29 @@ export const notifications = pgTable(
   ],
 );
 
+/** A text inviting someone to Pitchin, and optionally to one game. */
+export const invites = pgTable(
+  "invites",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    code: text("code").notNull().unique(), // /i/{code}
+    inviterId: uuid("inviter_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    phone: text("phone").notNull(),
+    name: text("name"),
+    gameId: uuid("game_id").references(() => games.id, { onDelete: "set null" }),
+    sentAt: ts("sent_at"),
+    acceptedBy: uuid("accepted_by").references(() => users.id, { onDelete: "set null" }),
+    acceptedAt: ts("accepted_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("invites_inviter_idx").on(t.inviterId, t.createdAt), uniqueIndex("invites_inviter_phone_uq").on(t.inviterId, t.phone)],
+);
+
 export type User = typeof users.$inferSelect;
 export type Group = typeof groups.$inferSelect;
 export type Schedule = typeof schedules.$inferSelect;
 export type Game = typeof games.$inferSelect;
 export type Spot = typeof spots.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
+export type Invite = typeof invites.$inferSelect;
 export type Sport = (typeof sportEnum.enumValues)[number];

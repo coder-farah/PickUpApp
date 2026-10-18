@@ -3,6 +3,10 @@ export const env = {
   cronSecret: process.env.CRON_SECRET ?? "",
   isProd: process.env.NODE_ENV === "production",
   isTest: process.env.NODE_ENV === "test" || !!process.env.VITEST,
+  apple: {
+    // A Services ID from developer.apple.com, like "app.pitchin.web"
+    clientId: process.env.APPLE_CLIENT_ID ?? "",
+  },
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
     authToken: process.env.TWILIO_AUTH_TOKEN ?? "",

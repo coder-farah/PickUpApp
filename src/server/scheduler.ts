@@ -4,13 +4,13 @@
  */
 import { and, eq, gt, inArray, isNull, lte, lt } from "drizzle-orm";
 import { db, t } from "./db";
-import { doCancel, lockGame, promote, spotCounts } from "./engine";
+import { doCancel, hasRoom, lockGame, promote, spotCounts } from "./engine";
 import { dispatchPending, gameUrl, queueNotifications } from "./notify";
 import { fmtWhen, weeklyOccurrences } from "@/lib/time";
 import { shortCode } from "@/lib/ids";
 import type { Schedule, Group } from "./db/schema";
 
-/** How far ahead weekly games are created (they show in Discover as "opens Thu 7 PM"). */
+/** How far ahead weekly games are created (they show in Explore as "opens Thu 7 PM"). */
 export const LOOKAHEAD_DAYS = 8;
 
 export function gameTimesFor(
@@ -52,6 +52,8 @@ export async function materializeSchedule(schedule: Schedule, group: Group, now:
         ...times,
         locationName: schedule.locationName,
         locationAddress: schedule.locationAddress,
+        lat: schedule.lat,
+        lng: schedule.lng,
         capacity: schedule.capacity,
         minPlayers: schedule.minPlayers,
         claimMinutes: schedule.claimMinutes,
@@ -103,7 +105,7 @@ export async function runTick(now = new Date(), opts: { dispatch?: boolean } = {
           userId,
           kind: "rsvps_open" as const,
           title: `${g.title} is open`,
-          body: `${fmtWhen(g.startsAt, g.timezone)} at ${g.locationName}. ${g.capacity} spots. Tap to get in.`,
+          body: `${fmtWhen(g.startsAt, g.timezone)} at ${g.locationName}. ${g.capacity === null ? "Tap to get in." : `${g.capacity} spots. Tap to get in.`}`,
           gameId: g.id,
           groupId: g.groupId,
           url: gameUrl(g.code),
@@ -159,7 +161,7 @@ export async function runTick(now = new Date(), opts: { dispatch?: boolean } = {
       const g = await lockGame(tx, id);
       if (g.lastCallNotifiedAt) return;
       const c = await spotCounts(tx, id);
-      if (c.waitlist > 0 && c.held < g.capacity) {
+      if (c.waitlist > 0 && hasRoom(g.capacity, c.held)) {
         await promote(tx, g, now);
         report.lastCall++;
       } else {

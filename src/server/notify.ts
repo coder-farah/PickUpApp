@@ -68,7 +68,7 @@ export async function dispatchPending(limit = 100) {
 
   let sent = 0;
   for (const { n, phone, smsEnabled } of rows) {
-    if (!smsEnabled) continue;
+    if (!smsEnabled || !phone) continue; // Apple sign-ins without a phone only get the inbox
     const text = `${n.title}. ${n.body}${n.url ? ` ${absoluteUrl(n.url)}` : ""}`;
     if (smsConfigured()) {
       try {

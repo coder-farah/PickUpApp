@@ -6,7 +6,10 @@ import { redirect } from "next/navigation";
 import { and, eq, gt } from "drizzle-orm";
 import { z } from "zod";
 import { db, t } from "@/server/db";
-import { AuthError, getCurrentUser, safeNext, sendLoginCode, signOut, verifyLoginCode } from "@/server/auth";
+import { afterSignIn, AuthError, getCurrentUser, safeNext, sendLoginCode, signOut, verifyLoginCode } from "@/server/auth";
+import { ProfileError, saveArea, saveProfile, sendInvites } from "@/server/profile";
+import { locateField } from "@/server/geocode";
+import { clampMiles } from "@/lib/geo";
 import * as engine from "@/server/engine";
 import { dispatchPending } from "@/server/notify";
 import { gameTimesFor, materializeSchedule } from "@/server/scheduler";
@@ -22,7 +25,7 @@ const int = (d: FormData, k: string, fallback: number) => {
 };
 
 function failure(err: unknown): ActionResult {
-  if (err instanceof engine.GameError || err instanceof AuthError) return { error: err.message };
+  if (err instanceof engine.GameError || err instanceof AuthError || err instanceof ProfileError) return { error: err.message };
   if (err instanceof z.ZodError) return { error: err.issues[0]?.message ?? "Check the form and try again." };
   console.error(err);
   return { error: "Something went wrong. Try again." };
@@ -50,7 +53,18 @@ export async function sendCodeAction(_: ActionResult, data: FormData): Promise<A
     return failure(err);
   }
   const next = safeNext(str(data, "next"));
-  redirect(`/login?phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(next)}`);
+  redirect(`/login/code?phone=${encodeURIComponent(phone)}&next=${encodeURIComponent(next)}`);
+}
+
+export async function resendCodeAction(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const phone = normalizePhone(str(data, "phone"));
+  if (!phone) return { error: "Start again with your phone number." };
+  try {
+    await sendLoginCode(phone);
+  } catch (err) {
+    return failure(err);
+  }
+  return { message: "New code sent." };
 }
 
 export async function verifyCodeAction(_: ActionResult, data: FormData): Promise<ActionResult> {
@@ -63,16 +77,48 @@ export async function verifyCodeAction(_: ActionResult, data: FormData): Promise
   } catch (err) {
     return failure(err);
   }
-  redirect(user.name ? next : `/welcome?next=${encodeURIComponent(next)}`);
+  redirect(afterSignIn(user, next));
 }
 
-export async function saveNameAction(_: ActionResult, data: FormData): Promise<ActionResult> {
-  const user = await me().catch(() => null);
+const profileInput = (data: FormData) => ({
+  name: str(data, "name"),
+  username: str(data, "username"),
+  photo: str(data, "photo"),
+  removePhoto: data.get("removePhoto") === "1",
+});
+
+/** First run, step 1: name, optional username and photo. */
+export async function saveWelcomeProfileAction(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const name = str(data, "name").slice(0, 40);
-  if (name.length < 2) return { error: "Add the name your teammates know you by." };
-  await db.update(t.users).set({ name }).where(eq(t.users.id, user.id));
-  redirect(safeNext(str(data, "next")));
+  try {
+    await saveProfile(user, profileInput(data));
+    if (!user.onboardedAt) await db.update(t.users).set({ onboardedAt: new Date() }).where(eq(t.users.id, user.id));
+  } catch (err) {
+    return failure(err);
+  }
+  redirect(`/welcome/invite?next=${encodeURIComponent(safeNext(str(data, "next")))}`);
+}
+
+/** First run, step 2: text friends an invite, optionally to a public game too. */
+export async function sendInvitesAction(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const next = safeNext(str(data, "next"));
+  let result;
+  try {
+    const people = z
+      .array(z.object({ name: z.string().max(60).optional(), phone: z.string().max(30) }))
+      .max(50)
+      .parse(JSON.parse(str(data, "people") || "[]"));
+    result = await sendInvites(user, people, data.get("withGame") === "on" ? str(data, "gameId") || null : null);
+  } catch (err) {
+    if (err instanceof SyntaxError) return { error: "Add at least one mobile number." };
+    return failure(err);
+  }
+  const q = new URLSearchParams({ n: String(result.sent), next });
+  if (result.game) q.set("game", result.game.code);
+  redirect(`/welcome/done?${q}`);
 }
 
 export async function signOutAction() {
@@ -82,14 +128,27 @@ export async function signOutAction() {
 
 export async function updateProfileAction(_: ActionResult, data: FormData): Promise<ActionResult> {
   const user = await me();
-  const name = str(data, "name").slice(0, 40);
-  if (name.length < 2) return { error: "Your name needs at least 2 letters." };
-  await db
-    .update(t.users)
-    .set({ name, smsEnabled: data.get("smsEnabled") === "on" })
-    .where(eq(t.users.id, user.id));
+  try {
+    await saveProfile(user, profileInput(data));
+  } catch (err) {
+    return failure(err);
+  }
+  await db.update(t.users).set({ smsEnabled: data.get("smsEnabled") === "on" }).where(eq(t.users.id, user.id));
   revalidatePath("/me");
+  revalidatePath("/", "layout");
   return { message: "Saved." };
+}
+
+/** Remember where Explore should search. */
+export async function saveAreaAction(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const user = await me();
+  const lat = Number(str(data, "lat"));
+  const lng = Number(str(data, "lng"));
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return { error: "Pick a place first." };
+  await saveArea(user.id, { label: str(data, "label") || "Pinned spot", lat, lng, miles: clampMiles(str(data, "miles")) });
+  revalidatePath("/");
+  revalidatePath("/me");
+  return { ok: true, message: "Saved as your area." };
 }
 
 // ─── Game actions ─────────────────────────────────────────────────────────────
@@ -113,7 +172,10 @@ export async function joinAction(_: ActionResult, data: FormData) {
   return gameAction(data, (uid) => engine.join(str(data, "gameId"), uid));
 }
 export async function leaveAction(_: ActionResult, data: FormData) {
-  return gameAction(data, (uid) => engine.leave(str(data, "spotId"), uid));
+  const result = await gameAction(data, (uid) => engine.leave(str(data, "spotId"), uid));
+  // Dropping yourself out lands on the game with a short confirmation.
+  if (result?.ok && str(data, "self") === "1") redirect(`/g/${str(data, "code")}?out=1`);
+  return result;
 }
 export async function claimAction(_: ActionResult, data: FormData) {
   return gameAction(data, (uid) => engine.claim(str(data, "spotId"), uid));
@@ -128,23 +190,25 @@ export async function cancelGameAction(_: ActionResult, data: FormData) {
   return gameAction(data, (uid) => engine.cancelGame(str(data, "gameId"), uid, str(data, "reason") || null));
 }
 export async function setCapacityAction(_: ActionResult, data: FormData) {
-  return gameAction(data, (uid) => engine.setCapacity(str(data, "gameId"), uid, int(data, "capacity", 0)));
+  const raw = str(data, "capacity");
+  return gameAction(data, (uid) => engine.setCapacity(str(data, "gameId"), uid, raw ? int(data, "capacity", 0) : null));
 }
 
 // ─── Creating games and groups ───────────────────────────────────────────────
 
 const rulesSchema = z
   .object({
-    capacity: z.number().int().min(2, "The cap must be at least 2.").max(60, "The cap can be at most 60."),
-    minPlayers: z.number().int().min(1, "The minimum must be at least 1."),
+    capacity: z.number().int().min(2, "The cap must be at least 2.").max(200, "The cap can be at most 200.").nullable(),
+    minPlayers: z.number().int().min(1, "The minimum must be at least 1.").max(200),
     claimMinutes: z.number().int().min(0).max(240),
     guestsAllowed: z.boolean(),
   })
-  .refine((r) => r.minPlayers <= r.capacity, { message: "The minimum can't be higher than the cap." });
+  .refine((r) => r.capacity === null || r.minPlayers <= r.capacity, { message: "The minimum can't be higher than the cap." });
 
+/** Roster rules from the form. With "Limit spots" off, there's no cap and so no waitlist. */
 function readRules(data: FormData) {
   return rulesSchema.parse({
-    capacity: int(data, "capacity", 14),
+    capacity: data.get("capped") === "on" ? int(data, "capacity", 14) : null,
     minPlayers: int(data, "minPlayers", 10),
     claimMinutes: int(data, "claimMinutes", 30),
     guestsAllowed: data.get("guestsAllowed") === "on",
@@ -186,6 +250,11 @@ export async function createGameAction(_: ActionResult, data: FormData): Promise
     const tz = group?.timezone ?? DEFAULT_TZ;
     const startsAt = parseLocalDateTime(str(data, "date"), str(data, "time"), tz);
     if (startsAt.getTime() < Date.now() + 15 * 60_000) return { error: "Pick a start time in the future." };
+    const address = str(data, "locationAddress") || null;
+    const spot =
+      group && group.lat != null && group.lng != null && location === group.homeField && !address
+        ? { lat: group.lat, lng: group.lng }
+        : await locateField(location, address, group?.city);
     const times = gameTimesFor(startsAt, {
       durationMinutes: int(data, "durationMinutes", 90),
       opensHoursBefore: 0,
@@ -208,7 +277,9 @@ export async function createGameAction(_: ActionResult, data: FormData): Promise
         opensAt: now,
         decisionAt: times.decisionAt && times.decisionAt > now ? times.decisionAt : null,
         locationName: location,
-        locationAddress: str(data, "locationAddress") || null,
+        locationAddress: address,
+        lat: spot?.lat ?? null,
+        lng: spot?.lng ?? null,
         ...rules,
         visibility: (group?.visibility ?? (str(data, "visibility") === "private" ? "private" : "public")) as never,
         status: "open",
@@ -230,7 +301,7 @@ export async function createGameAction(_: ActionResult, data: FormData): Promise
             userId: m.userId,
             kind: "rsvps_open" as const,
             title: `New game: ${title}`,
-            body: `${fmtWhen(startsAt, tz)} at ${location}. ${rules.capacity} spots.`,
+            body: `${fmtWhen(startsAt, tz)} at ${location}.${rules.capacity === null ? "" : ` ${rules.capacity} spots.`}`,
             gameId: game.id,
             groupId: group.id,
             url: `/g/${code}`,
@@ -262,6 +333,8 @@ export async function createGroupAction(_: ActionResult, data: FormData): Promis
     const rules = readRules(data);
     slug = await uniqueSlug(name);
     const sport = (str(data, "sport") || "soccer") as never;
+    const address = str(data, "locationAddress") || null;
+    const spot = await locateField(location, address);
 
     const group = await db.transaction(async (tx) => {
       const [g] = await tx
@@ -273,6 +346,8 @@ export async function createGroupAction(_: ActionResult, data: FormData): Promis
           description: str(data, "description") || null,
           homeField: location,
           area: str(data, "area") || null,
+          lat: spot?.lat ?? null,
+          lng: spot?.lng ?? null,
           visibility: str(data, "visibility") === "private" ? "private" : "public",
           inviteCode: shortCode(10),
           createdBy: user.id,
@@ -288,7 +363,9 @@ export async function createGroupAction(_: ActionResult, data: FormData): Promis
           startTime,
           durationMinutes: int(data, "durationMinutes", 90),
           locationName: location,
-          locationAddress: str(data, "locationAddress") || null,
+          locationAddress: address,
+          lat: spot?.lat ?? null,
+          lng: spot?.lng ?? null,
           ...rules,
           opensHoursBefore: int(data, "opensHoursBefore", 48),
           decisionHoursBefore: int(data, "decisionHoursBefore", 4),
@@ -320,6 +397,10 @@ export async function addScheduleAction(_: ActionResult, data: FormData): Promis
     if (weekday < 0 || weekday > 6 || !/^\d{2}:\d{2}$/.test(startTime)) return { error: "Pick a day and a start time." };
     const location = str(data, "locationName") || m.group.homeField || "";
     if (!location) return { error: "Add where this game is played." };
+    const spot =
+      location === m.group.homeField && m.group.lat != null && m.group.lng != null
+        ? { lat: m.group.lat, lng: m.group.lng }
+        : await locateField(location, null, m.group.city);
     const [s] = await db
       .insert(t.schedules)
       .values({
@@ -329,6 +410,8 @@ export async function addScheduleAction(_: ActionResult, data: FormData): Promis
         startTime,
         durationMinutes: int(data, "durationMinutes", 90),
         locationName: location,
+        lat: spot?.lat ?? null,
+        lng: spot?.lng ?? null,
         ...readRules(data),
         opensHoursBefore: int(data, "opensHoursBefore", 48),
         decisionHoursBefore: int(data, "decisionHoursBefore", 4),

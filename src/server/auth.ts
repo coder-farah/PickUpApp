@@ -3,12 +3,12 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gt, isNull, sql as dsql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, gt, isNull, sql as dsql } from "drizzle-orm";
 import { db, t } from "./db";
 import { env, verifyConfigured } from "./env";
 import { checkVerification, startVerification } from "./twilio";
 
-const COOKIE = "ko_session";
+const COOKIE = "pitchin_session";
 const SESSION_DAYS = 90;
 const CODE_MINUTES = 10;
 const DEV_CODE = "000000";
@@ -17,11 +17,15 @@ const sha256 = (v: string) => createHash("sha256").update(v).digest("hex");
 
 export class AuthError extends Error {}
 
-export const getCurrentUser = cache(async () => {
+// Everything about a user except the photo bytes.
+const { avatar: _avatar, ...userCols } = getTableColumns(t.users);
+export type SessionUser = Omit<typeof t.users.$inferSelect, "avatar">;
+
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const [row] = await db
-    .select({ user: t.users })
+    .select({ user: userCols })
     .from(t.sessions)
     .innerJoin(t.users, eq(t.users.id, t.sessions.userId))
     .where(and(eq(t.sessions.tokenHash, sha256(token)), gt(t.sessions.expiresAt, new Date())));
@@ -85,11 +89,31 @@ export async function verifyLoginCode(phone: string, code: string) {
     .insert(t.users)
     .values({ phone })
     .onConflictDoUpdate({ target: t.users.phone, set: { phone } })
-    .returning();
+    .returning(userCols);
+  await startSession(user.id);
+  return user;
+}
 
+/** Find or create the account for an Apple ID, and start a session. */
+export async function signInWithApple(sub: string, email: string | null, name: string | null) {
+  const [existing] = await db.select(userCols).from(t.users).where(eq(t.users.appleSub, sub));
+  const user =
+    existing ??
+    (
+      await db
+        .insert(t.users)
+        .values({ appleSub: sub, email, name })
+        .onConflictDoUpdate({ target: t.users.appleSub, set: { email } })
+        .returning(userCols)
+    )[0];
+  await startSession(user.id);
+  return user;
+}
+
+async function startSession(userId: string) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 86_400_000);
-  await db.insert(t.sessions).values({ tokenHash: sha256(token), userId: user.id, expiresAt });
+  await db.insert(t.sessions).values({ tokenHash: sha256(token), userId, expiresAt });
   (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -97,7 +121,11 @@ export async function verifyLoginCode(phone: string, code: string) {
     path: "/",
     expires: expiresAt,
   });
-  return user;
+}
+
+/** Where to send someone right after they sign in: first-run setup, or back where they were. */
+export function afterSignIn(user: Pick<SessionUser, "onboardedAt">, next: string) {
+  return user.onboardedAt ? next : `/welcome?next=${encodeURIComponent(next)}`;
 }
 
 export async function signOut() {

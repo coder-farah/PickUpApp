@@ -10,5 +10,5 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   const { sql } = await import("@/server/db");
-  await sql`truncate notifications, spots, games, schedules, group_members, groups, sessions, login_codes, users cascade`;
+  await sql`truncate invites, notifications, spots, games, schedules, group_members, groups, sessions, login_codes, users cascade`;
 });

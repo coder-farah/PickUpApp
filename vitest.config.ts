@@ -5,6 +5,7 @@ export default defineConfig({
   resolve: { alias: { "@": path.resolve(__dirname, "src"), "server-only": path.resolve(__dirname, "tests/server-only.ts") } },
   test: {
     environment: "node",
+    exclude: ["node_modules/**", "mobile/**"],
     setupFiles: ["./tests/setup.ts"],
     fileParallelism: false,
     testTimeout: 20000,

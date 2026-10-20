@@ -12,10 +12,10 @@ import { locateField } from "@/server/geocode";
 import { clampMiles } from "@/lib/geo";
 import * as engine from "@/server/engine";
 import { dispatchPending } from "@/server/notify";
-import { gameTimesFor, materializeSchedule } from "@/server/scheduler";
+import { materializeSchedule } from "@/server/scheduler";
+import { createCrew, createGame, rulesSchema } from "@/server/hosting";
+import { joinCrew, leaveCrew } from "@/server/crews";
 import { normalizePhone } from "@/lib/phone";
-import { parseLocalDateTime, DEFAULT_TZ } from "@/lib/time";
-import { shortCode, slugify } from "@/lib/ids";
 import type { ActionResult } from "@/components/client";
 
 const str = (d: FormData, k: string) => String(d.get(k) ?? "").trim();
@@ -196,15 +196,6 @@ export async function setCapacityAction(_: ActionResult, data: FormData) {
 
 // ─── Creating games and groups ───────────────────────────────────────────────
 
-const rulesSchema = z
-  .object({
-    capacity: z.number().int().min(2, "The cap must be at least 2.").max(200, "The cap can be at most 200.").nullable(),
-    minPlayers: z.number().int().min(1, "The minimum must be at least 1.").max(200),
-    claimMinutes: z.number().int().min(0).max(240),
-    guestsAllowed: z.boolean(),
-  })
-  .refine((r) => r.capacity === null || r.minPlayers <= r.capacity, { message: "The minimum can't be higher than the cap." });
-
 /** Roster rules from the form. With "Limit spots" off, there's no cap and so no waitlist. */
 function readRules(data: FormData) {
   return rulesSchema.parse({
@@ -215,101 +206,30 @@ function readRules(data: FormData) {
   });
 }
 
-async function uniqueSlug(name: string) {
-  const base = slugify(name);
-  for (let i = 0; i < 20; i++) {
-    const slug = i === 0 ? base : `${base}-${shortCode(4)}`;
-    const [taken] = await db.select({ id: t.groups.id }).from(t.groups).where(eq(t.groups.slug, slug));
-    if (!taken) return slug;
-  }
-  return `${base}-${shortCode(8)}`;
-}
-
 /** One-time game, optionally inside a group. */
 export async function createGameAction(_: ActionResult, data: FormData): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/new");
   let code: string;
   try {
-    const title = str(data, "title");
-    if (title.length < 3) return { error: "Give the game a name, like “Thursday Night 5v5”." };
-    const location = str(data, "locationName");
-    if (!location) return { error: "Where are you playing?" };
-    const rules = readRules(data);
-    const groupId = str(data, "groupId") || null;
-    let group = null;
-    if (groupId) {
-      const [m] = await db
-        .select({ group: t.groups, role: t.groupMembers.role })
-        .from(t.groupMembers)
-        .innerJoin(t.groups, eq(t.groups.id, t.groupMembers.groupId))
-        .where(and(eq(t.groupMembers.groupId, groupId), eq(t.groupMembers.userId, user.id)));
-      if (m?.role !== "organizer") return { error: "Only organizers can add games to that group." };
-      group = m.group;
-    }
-    const tz = group?.timezone ?? DEFAULT_TZ;
-    const startsAt = parseLocalDateTime(str(data, "date"), str(data, "time"), tz);
-    if (startsAt.getTime() < Date.now() + 15 * 60_000) return { error: "Pick a start time in the future." };
-    const address = str(data, "locationAddress") || null;
-    const spot =
-      group && group.lat != null && group.lng != null && location === group.homeField && !address
-        ? { lat: group.lat, lng: group.lng }
-        : await locateField(location, address, group?.city);
-    const times = gameTimesFor(startsAt, {
+    const game = await createGame(user, {
+      title: str(data, "title"),
+      sport: (str(data, "sport") || undefined) as never,
+      date: str(data, "date"),
+      time: str(data, "time"),
       durationMinutes: int(data, "durationMinutes", 90),
-      opensHoursBefore: 0,
-      decisionHoursBefore: data.get("autoCancel") === "on" ? int(data, "decisionHoursBefore", 4) : 0,
-      lastCallHours: 3,
+      locationName: str(data, "locationName"),
+      locationAddress: str(data, "locationAddress") || null,
+      notes: str(data, "notes") || null,
+      rules: readRules(data),
+      autoCancel: data.get("autoCancel") === "on",
+      decisionHoursBefore: int(data, "decisionHoursBefore", 4),
+      groupId: str(data, "groupId") || null,
+      visibility: str(data, "visibility") === "private" ? "private" : "public",
+      hostPlays: data.get("hostPlays") === "on",
     });
-    const now = new Date();
-    code = shortCode();
-    const [game] = await db
-      .insert(t.games)
-      .values({
-        code,
-        groupId: group?.id ?? null,
-        hostId: user.id,
-        title,
-        sport: (str(data, "sport") || group?.sport || "soccer") as never,
-        notes: str(data, "notes") || null,
-        timezone: tz,
-        ...times,
-        opensAt: now,
-        decisionAt: times.decisionAt && times.decisionAt > now ? times.decisionAt : null,
-        locationName: location,
-        locationAddress: address,
-        lat: spot?.lat ?? null,
-        lng: spot?.lng ?? null,
-        ...rules,
-        visibility: (group?.visibility ?? (str(data, "visibility") === "private" ? "private" : "public")) as never,
-        status: "open",
-      })
-      .returning();
-    if (data.get("hostPlays") === "on") await engine.join(game.id, user.id);
-    if (group) {
-      const members = await db
-        .select({ userId: t.groupMembers.userId })
-        .from(t.groupMembers)
-        .where(eq(t.groupMembers.groupId, group.id));
-      const { queueNotifications } = await import("@/server/notify");
-      const { fmtWhen } = await import("@/lib/time");
-      await queueNotifications(
-        db,
-        members
-          .filter((m) => m.userId !== user.id)
-          .map((m) => ({
-            userId: m.userId,
-            kind: "rsvps_open" as const,
-            title: `New game: ${title}`,
-            body: `${fmtWhen(startsAt, tz)} at ${location}.${rules.capacity === null ? "" : ` ${rules.capacity} spots.`}`,
-            gameId: game.id,
-            groupId: group.id,
-            url: `/g/${code}`,
-            sms: true,
-          })),
-      );
-      sendTexts();
-    }
+    code = game.code;
+    if (game.notified) sendTexts();
   } catch (err) {
     return failure(err);
   }
@@ -322,60 +242,21 @@ export async function createGroupAction(_: ActionResult, data: FormData): Promis
   if (!user) redirect("/login?next=/new");
   let slug: string;
   try {
-    const name = str(data, "name");
-    if (name.length < 3) return { error: "Name your group, like “Tuesday Night 7v7”." };
-    const location = str(data, "locationName");
-    if (!location) return { error: "Add the field or court you usually play at." };
-    const weekday = int(data, "weekday", -1);
-    if (weekday < 0 || weekday > 6) return { error: "Pick the day you play." };
-    const startTime = str(data, "startTime");
-    if (!/^\d{2}:\d{2}$/.test(startTime)) return { error: "Pick a start time." };
-    const rules = readRules(data);
-    slug = await uniqueSlug(name);
-    const sport = (str(data, "sport") || "soccer") as never;
-    const address = str(data, "locationAddress") || null;
-    const spot = await locateField(location, address);
-
-    const group = await db.transaction(async (tx) => {
-      const [g] = await tx
-        .insert(t.groups)
-        .values({
-          slug,
-          name,
-          sport,
-          description: str(data, "description") || null,
-          homeField: location,
-          area: str(data, "area") || null,
-          lat: spot?.lat ?? null,
-          lng: spot?.lng ?? null,
-          visibility: str(data, "visibility") === "private" ? "private" : "public",
-          inviteCode: shortCode(10),
-          createdBy: user.id,
-        })
-        .returning();
-      await tx.insert(t.groupMembers).values({ groupId: g.id, userId: user.id, role: "organizer" });
-      const [s] = await tx
-        .insert(t.schedules)
-        .values({
-          groupId: g.id,
-          title: name,
-          weekday,
-          startTime,
-          durationMinutes: int(data, "durationMinutes", 90),
-          locationName: location,
-          locationAddress: address,
-          lat: spot?.lat ?? null,
-          lng: spot?.lng ?? null,
-          ...rules,
-          opensHoursBefore: int(data, "opensHoursBefore", 48),
-          decisionHoursBefore: int(data, "decisionHoursBefore", 4),
-          lastCallHours: 3,
-          createdBy: user.id,
-        })
-        .returning();
-      return { g, s };
-    });
-    await materializeSchedule(group.s, group.g, new Date());
+    ({ slug } = await createCrew(user, {
+      name: str(data, "name"),
+      sport: (str(data, "sport") || "soccer") as never,
+      description: str(data, "description") || null,
+      locationName: str(data, "locationName"),
+      locationAddress: str(data, "locationAddress") || null,
+      area: str(data, "area") || null,
+      visibility: str(data, "visibility") === "private" ? "private" : "public",
+      weekday: int(data, "weekday", -1),
+      startTime: str(data, "startTime"),
+      durationMinutes: int(data, "durationMinutes", 90),
+      opensHoursBefore: int(data, "opensHoursBefore", 48),
+      decisionHoursBefore: int(data, "decisionHoursBefore", 4),
+      rules: readRules(data),
+    }));
   } catch (err) {
     return failure(err);
   }
@@ -450,31 +331,29 @@ export async function toggleScheduleAction(_: ActionResult, data: FormData): Pro
 
 export async function joinGroupAction(_: ActionResult, data: FormData): Promise<ActionResult> {
   const slugOrInvite = str(data, "group");
+  const invite = str(data, "invite") || null;
   const user = await getCurrentUser();
-  const [group] = await db.select().from(t.groups).where(eq(t.groups.slug, slugOrInvite));
-  const invite = str(data, "invite");
-  const target =
-    group ?? (invite ? (await db.select().from(t.groups).where(eq(t.groups.inviteCode, invite)))[0] : undefined);
-  if (!target) return { error: "This group doesn't exist anymore." };
-  if (!user) redirect(`/login?next=${encodeURIComponent(invite ? `/join/${invite}` : `/groups/${target.slug}`)}`);
-  if (target.visibility === "private" && target.inviteCode !== invite) {
-    return { error: "This group is invite-only. Ask an organizer for the link." };
+  if (!user) {
+    const [g] = await db.select({ slug: t.groups.slug }).from(t.groups).where(eq(t.groups.slug, slugOrInvite));
+    redirect(`/login?next=${encodeURIComponent(invite ? `/join/${invite}` : `/groups/${g?.slug ?? slugOrInvite}`)}`);
   }
-  await db.insert(t.groupMembers).values({ groupId: target.id, userId: user.id }).onConflictDoNothing();
-  revalidatePath(`/groups/${target.slug}`);
-  redirect(`/groups/${target.slug}`);
+  let slug: string;
+  try {
+    ({ slug } = await joinCrew(user.id, slugOrInvite || null, invite));
+  } catch (err) {
+    return failure(err);
+  }
+  revalidatePath(`/groups/${slug}`);
+  redirect(`/groups/${slug}`);
 }
 
 export async function leaveGroupAction(_: ActionResult, data: FormData): Promise<ActionResult> {
   const user = await me();
-  const groupId = str(data, "groupId");
-  const members = await db.select().from(t.groupMembers).where(eq(t.groupMembers.groupId, groupId));
-  const mine = members.find((m) => m.userId === user.id);
-  if (!mine) return { ok: true };
-  if (mine.role === "organizer" && members.filter((m) => m.role === "organizer").length === 1 && members.length > 1) {
-    return { error: "You're the only organizer. Make someone else an organizer before leaving." };
+  try {
+    await leaveCrew(user.id, str(data, "groupId"));
+  } catch (err) {
+    return failure(err);
   }
-  await db.delete(t.groupMembers).where(and(eq(t.groupMembers.groupId, groupId), eq(t.groupMembers.userId, user.id)));
   redirect("/");
 }
 

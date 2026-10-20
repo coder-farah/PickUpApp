@@ -15,6 +15,13 @@
       "when": 1792345286063,
       "tag": "0001_pitchin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792349520982,
+      "tag": "0002_app",
+      "breakpoints": true
     }
   ]
 }

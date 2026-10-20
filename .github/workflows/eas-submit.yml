@@ -1,0 +1,30 @@
+name: TestFlight upload
+
+# Sends the latest finished iOS build to App Store Connect, for when a build ran without "Send to TestFlight".
+on:
+  workflow_dispatch:
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Fill in the App Store Connect details
+        env:
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: ../.github/scripts/eas-submit-config.sh
+      - run: eas submit --platform ios --profile production --latest --non-interactive --wait

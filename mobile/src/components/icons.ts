@@ -4,6 +4,7 @@ export {
   Bell,
   CalendarDays,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Compass,

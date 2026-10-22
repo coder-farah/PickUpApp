@@ -4,12 +4,12 @@ import { api } from "@/api/client";
 import type { PlaceView } from "@/api/types";
 import { currentPlace, MILE_PRESETS, searchPlaces } from "@/lib/geo";
 import { useTheme } from "@/theme";
-import { LocateFixed, MapPin, Search } from "./icons";
+import { ChevronDown, LocateFixed, MapPin, Search } from "./icons";
 import { Sheet } from "./Sheet";
 import { Body, Button, Input, Mono, Notice } from "./ui";
 
 /** Where Explore searches: current location or a city/ZIP, plus a radius from 2 to 50 miles. */
-export function LocationPicker({ place, miles, onChange, onSaved }: { place: PlaceView; miles: number; onChange: (p: PlaceView, miles: number) => void; onSaved?: () => void }) {
+export function LocationPicker({ place, miles, onChange, onSaved, compact }: { place: PlaceView; miles: number; onChange: (p: PlaceView, miles: number) => void; onSaved?: () => void; compact?: boolean }) {
   const { c } = useTheme();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -26,6 +26,15 @@ export function LocationPicker({ place, miles, onChange, onSaved }: { place: Pla
 
   return (
     <>
+      {compact ? (
+        <Pressable accessibilityLabel={`Searching near ${place.label}, ${miles} miles. Change`} onPress={() => setOpen(true)} style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 4 }}>
+          <MapPin size={14} color={c.ink2} />
+          <Body size={14} color={c.ink2} numberOfLines={1}>
+            {place.label} · {miles} mi
+          </Body>
+          <ChevronDown size={14} color={c.ink2} />
+        </Pressable>
+      ) : (
       <Pressable onPress={() => setOpen(true)} style={{ flexDirection: "row", alignItems: "center", gap: 10, height: 52, borderRadius: 26, paddingHorizontal: 16, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }}>
         <MapPin size={16} color={c.ink} />
         <Body weight="medium" numberOfLines={1} style={{ flex: 1 }}>
@@ -35,6 +44,7 @@ export function LocationPicker({ place, miles, onChange, onSaved }: { place: Pla
           {miles} MI
         </Mono>
       </Pressable>
+      )}
       <Sheet open={open} onClose={() => setOpen(false)} title="Search near">
         <Button
           title={locating ? "Finding you" : "Use my location"}

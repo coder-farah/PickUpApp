@@ -166,8 +166,8 @@ export function Card({ children, onPress, style, ...rest }: { children: ReactNod
 
 export function SectionTitle({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
-      <Disp size={26}>{children}</Disp>
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+      <Body size={17} weight="semibold">{children}</Body>
       {action}
     </View>
   );

@@ -29,12 +29,18 @@ export default function ExploreScreen() {
 
   return (
     <Page refreshing={isRefetching} onRefresh={() => void refetch()} padTop={insets.top + 12} style={{ paddingHorizontal: 16, gap: 18 }}>
-      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
-        <View style={{ flex: 1 }}>
-          <Mono eyebrow>Explore</Mono>
-          <Disp size={44} style={{ marginTop: 4 }}>
-            Games near
-          </Disp>
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Disp size={36}>Explore</Disp>
+          {data && (
+            <LocationPicker
+              compact
+              place={data.place}
+              miles={data.miles}
+              onChange={(place, miles) => setWhere({ place, miles })}
+              onSaved={() => void qc.invalidateQueries({ queryKey: keys.home })}
+            />
+          )}
         </View>
         <View style={{ flexDirection: "row", backgroundColor: c.surface, borderRadius: 999, padding: 4, borderWidth: 1, borderColor: c.line }}>
           {(["list", "map"] as const).map((v) => {
@@ -48,19 +54,10 @@ export default function ExploreScreen() {
         </View>
       </View>
 
-      {data && (
-        <LocationPicker
-          place={data.place}
-          miles={data.miles}
-          onChange={(place, miles) => setWhere({ place, miles })}
-          onSaved={() => void qc.invalidateQueries({ queryKey: keys.home })}
-        />
-      )}
-
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16 }} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
-        <DayChip active={!day} top="All" bottom="Week" onPress={() => setDay(null)} />
+        <DayChip active={!day} label="This week" onPress={() => setDay(null)} />
         {days.map((d) => (
-          <DayChip key={keyOf(d)} active={day === keyOf(d)} top={WEEKDAYS[d.getDay()]} bottom={String(d.getDate())} onPress={() => setDay(keyOf(d))} />
+          <DayChip key={keyOf(d)} active={day === keyOf(d)} label={`${WEEKDAYS[d.getDay()]} ${d.getDate()}`} onPress={() => setDay(keyOf(d))} />
         ))}
       </ScrollView>
 
@@ -104,16 +101,13 @@ export default function ExploreScreen() {
   );
 }
 
-function DayChip({ active, top, bottom, onPress }: { active: boolean; top: string; bottom: string; onPress: () => void }) {
+function DayChip({ active, label, onPress }: { active: boolean; label: string; onPress: () => void }) {
   const { c } = useTheme();
   return (
-    <Pressable onPress={onPress} accessibilityState={{ selected: active }} style={{ height: 64, minWidth: 52, paddingHorizontal: 8, borderRadius: 16, alignItems: "center", justifyContent: "center", gap: 4, backgroundColor: active ? c.night : c.surface, borderWidth: active ? 0 : 1, borderColor: c.line }}>
-      <Mono size={10} color={active ? c.lime : c.muted}>
-        {top.toUpperCase()}
-      </Mono>
-      <Disp size={22} color={active ? "#FFFFFF" : c.ink}>
-        {bottom}
-      </Disp>
+    <Pressable onPress={onPress} accessibilityState={{ selected: active }} style={{ height: 34, paddingHorizontal: 14, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: active ? c.night : "transparent", borderWidth: active ? 0 : 1, borderColor: c.lineStrong }}>
+      <Body size={13.5} weight="medium" color={active ? "#FFFFFF" : c.ink2}>
+        {label}
+      </Body>
     </Pressable>
   );
 }
@@ -122,11 +116,11 @@ function ByDay({ games }: { games: GameCardView[] }) {
   const groups = new Map<string, GameCardView[]>();
   for (const g of games) groups.set(g.dayKey, [...(groups.get(g.dayKey) ?? []), g]);
   return (
-    <View style={{ gap: 28 }}>
+    <View style={{ gap: 24 }}>
       {[...groups.values()].map((list) => (
-        <View key={list[0].dayKey} style={{ gap: 12 }}>
+        <View key={list[0].dayKey} style={{ gap: 10 }}>
           <View style={{ flexDirection: "row", alignItems: "baseline", gap: 10 }}>
-            <Disp size={28}>{list[0].dayLabel}</Disp>
+            <Body size={17} weight="semibold">{list[0].dayLabel}</Body>
             <Mono size={11}>
               {list.length} game{list.length === 1 ? "" : "s"}
             </Mono>

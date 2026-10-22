@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Alert, Linking, View } from "react-native";
+import { Alert, Linking, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,7 +10,7 @@ import { useAuth } from "@/lib/auth";
 import { enablePush, pushStatus } from "@/lib/push";
 import { shareLink } from "@/lib/share";
 import { Avatar } from "@/components/Avatar";
-import { MapPin } from "@/components/icons";
+import { ChevronRight } from "@/components/icons";
 import { ProfileFields, type ProfileDraft } from "@/components/ProfileFields";
 import { Body, Button, Card, Disp, Loading, Mono, Notice, Page, SwitchRow } from "@/components/ui";
 import { useTheme } from "@/theme";
@@ -34,6 +34,7 @@ export default function MeScreen() {
   const [usernameOk, setUsernameOk] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [push, setPush] = useState<Awaited<ReturnType<typeof pushStatus>>>("unavailable");
 
   useEffect(() => {
@@ -85,78 +86,61 @@ export default function MeScreen() {
   }
 
   return (
-    <Page refreshing={isRefetching} onRefresh={() => void refetch()} padTop={insets.top + 16} style={{ paddingHorizontal: 16, gap: 26 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-        <Avatar name={u.name} seed={u.id} photo={u.photo} size={72} />
+    <Page refreshing={isRefetching} onRefresh={() => void refetch()} padTop={insets.top + 16} style={{ paddingHorizontal: 16, gap: 22 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+        <Avatar name={u.name} seed={u.id} photo={u.photo} size={56} />
         <View style={{ flex: 1 }}>
-          <Disp size={44} numberOfLines={1}>
+          <Disp size={32} numberOfLines={1}>
             {u.name ?? "Player"}
           </Disp>
-          <Mono size={12} style={{ marginTop: 4 }}>
-            {[u.username ? `@${u.username}` : null, u.phone ?? u.email].filter(Boolean).join(" · ")}
+          <Mono size={11.5} style={{ marginTop: 2 }}>
+            {u.username ? `@${u.username}` : (u.phone ?? u.email)}
           </Mono>
         </View>
+        <Button title={editing ? "Done" : "Edit profile"} variant="secondary" size="sm" onPress={() => setEditing((x) => !x)} />
       </View>
 
-      <View style={{ flexDirection: "row", gap: 10 }}>
+      <Card style={{ flexDirection: "row", paddingVertical: 14 }}>
         {[
           { label: "Played", value: data.stats.played },
           { label: "Hosted", value: data.stats.hosted },
           { label: "Late drops", value: data.stats.lateDrops, warn: data.stats.lateDrops > 2 },
-        ].map((s) => (
-          <Card key={s.label} style={{ flex: 1, gap: 4 }}>
-            <Disp size={44} color={s.warn ? c.signal : c.ink}>
+        ].map((s, i) => (
+          <View key={s.label} style={{ flex: 1, alignItems: "center", gap: 2, borderLeftWidth: i ? 1 : 0, borderColor: c.line }}>
+            <Disp size={28} color={s.warn ? c.signal : c.ink}>
               {s.value}
             </Disp>
-            <Mono size={10.5}>{s.label.toUpperCase()}</Mono>
-          </Card>
+            <Body size={12.5} color={c.muted}>
+              {s.label}
+            </Body>
+          </View>
         ))}
-      </View>
+      </Card>
 
-      <Group title="Where you play">
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <MapPin size={16} color={c.ink} />
-          <Body style={{ flex: 1 }}>{u.area ? `${u.area.label} · ${u.area.miles} mi` : "San Francisco · 10 mi"}</Body>
-          <Body size={14} weight="medium" color={c.pitch} onPress={() => router.push("/explore")}>
-            Change
-          </Body>
-        </View>
-      </Group>
+      {editing && (
+        <Group title="Profile">
+          <ProfileFields draft={draft} onChange={(d) => (setDraft(d), setSaved(false))} seed={u.id} savedPhoto={u.photo} onUsernameOk={setUsernameOk} />
+          {saved ? <Notice tone="pitch">Saved.</Notice> : null}
+          <Button title="Save profile" loading={saving} disabled={draft.name.trim().length < 2 || !usernameOk} onPress={() => void save()} />
+        </Group>
+      )}
 
-      <Group title="Notifications">
-        {push === "on" ? (
-          <Body>Notifications are on. You hear about held spots, games opening and changes right away.</Body>
-        ) : push === "unavailable" ? (
-          <Body color={c.muted}>Notifications work in the iPhone app.</Body>
-        ) : (
-          <>
-            <Body color={c.ink2}>Get a heads-up the moment a spot is held for you.</Body>
-            <Button
-              title={push === "blocked" ? "Open Settings" : "Turn on notifications"}
-              variant="lime"
-              onPress={async () => (push === "blocked" ? void Linking.openSettings() : setPush((await enablePush()) ? "on" : await pushStatus()))}
-            />
-          </>
-        )}
-        {u.phone ? <SwitchRow label="Texts when the app can't reach you" hint="Only if notifications are off." value={u.smsEnabled} onValueChange={(smsEnabled) => void save({ smsEnabled })} /> : null}
-      </Group>
-
-      <Group title="Profile">
-        <ProfileFields draft={draft} onChange={(d) => (setDraft(d), setSaved(false))} seed={u.id} savedPhoto={u.photo} onUsernameOk={setUsernameOk} />
-        {saved ? <Notice tone="pitch">Saved.</Notice> : null}
-        <Button title="Save profile" loading={saving} disabled={draft.name.trim().length < 2 || !usernameOk} onPress={() => void save()} />
-      </Group>
-
-      <Group title="Friends">
-        <Body color={c.ink2}>Pickup works when your friends are on it too.</Body>
-        <Button title="Invite friends" variant="secondary" onPress={() => void shareLink(`${u.name ?? "A friend"} invited you to Pitchin, the easy way to find pickup games.`, API_URL)} />
-      </Group>
-
-      <Group title="Help">
-        <Body onPress={() => void Linking.openURL(`${API_URL}/support`)}>Support</Body>
-        <Body onPress={() => void Linking.openURL(`${API_URL}/privacy`)}>Privacy policy</Body>
-        <Body onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}`)}>Email {SUPPORT_EMAIL}</Body>
-      </Group>
+      <Card style={{ paddingVertical: 4 }}>
+        <Row label="Where you play" value={u.area ? `${u.area.label} · ${u.area.miles} mi` : "San Francisco · 10 mi"} onPress={() => router.push("/explore")} />
+        <Row
+          label="Notifications"
+          value={push === "on" ? "On" : push === "unavailable" ? "In the iPhone app" : push === "blocked" ? "Off in Settings" : "Off"}
+          onPress={push === "on" || push === "unavailable" ? undefined : async () => (push === "blocked" ? void Linking.openSettings() : setPush((await enablePush()) ? "on" : await pushStatus()))}
+        />
+        {u.phone ? (
+          <View style={{ borderTopWidth: 1, borderColor: c.line, paddingVertical: 6 }}>
+            <SwitchRow label="Texts as a backup" value={u.smsEnabled} onValueChange={(smsEnabled) => void save({ smsEnabled })} />
+          </View>
+        ) : null}
+        <Row label="Invite friends" onPress={() => void shareLink(`${u.name ?? "A friend"} invited you to Pitchin, the easy way to find pickup games.`, API_URL)} />
+        <Row label="Help and support" onPress={() => void Linking.openURL(`${API_URL}/support`)} />
+        <Row label="Privacy policy" onPress={() => void Linking.openURL(`${API_URL}/privacy`)} />
+      </Card>
 
       <View style={{ gap: 12 }}>
         <Button title="Sign out" variant="secondary" onPress={() => void signOut()} />
@@ -165,5 +149,20 @@ export default function MeScreen() {
         </Body>
       </View>
     </Page>
+  );
+}
+
+function Row({ label, value, onPress }: { label: string; value?: string; onPress?: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Pressable onPress={onPress} disabled={!onPress} style={{ flexDirection: "row", alignItems: "center", gap: 10, minHeight: 52, borderTopWidth: 1, borderColor: c.line, marginTop: -1 }}>
+      <Body style={{ flex: 1 }}>{label}</Body>
+      {value ? (
+        <Body size={14} color={c.muted} numberOfLines={1}>
+          {value}
+        </Body>
+      ) : null}
+      {onPress ? <ChevronRight size={16} color={c.muted} /> : null}
+    </Pressable>
   );
 }

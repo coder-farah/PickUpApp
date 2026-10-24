@@ -39,16 +39,5 @@
         "APP_LINK_DOMAIN": "pitchin.app"
       }
     }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "ascAppId": "",
-        "appleTeamId": "",
-        "ascApiKeyPath": "./asc-api-key.p8",
-        "ascApiKeyId": "",
-        "ascApiKeyIssuerId": ""
-      }
-    }
   }
 }

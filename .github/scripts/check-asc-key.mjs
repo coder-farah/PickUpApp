@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const { ASC_KEY_ID: kid = "", ASC_ISSUER_ID: iss = "" } = process.env;
 const pem = readFileSync(process.argv[2], "utf8");
 console.log("Key ID is 10 letters/digits:", /^[A-Z0-9]{10}$/.test(kid.trim()), "| has stray whitespace:", kid !== kid.trim());
+if (process.env.EXPECT_KEY_ID) console.log("Key ID matches", process.env.EXPECT_KEY_ID + ":", kid.trim() === process.env.EXPECT_KEY_ID);
 console.log("Issuer ID is a UUID:", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(iss.trim()), "| has stray whitespace:", iss !== iss.trim());
 console.log("Key file has BEGIN/END PRIVATE KEY lines:", pem.includes("-----BEGIN PRIVATE KEY-----") && pem.includes("-----END PRIVATE KEY-----"), "| lines:", pem.trim().split("\n").length);
 let key;

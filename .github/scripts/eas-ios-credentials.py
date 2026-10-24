@@ -12,11 +12,12 @@ import select
 import sys
 import time
 
-# Prompts that are safe to accept with Enter (their default is yes / reuse).
+# Prompts that are safe to accept with Enter (their default is yes: reuse, or make this app's own profile).
 SAFE = [
     "Reuse this distribution certificate?",
     "Would you like to reuse the original profile?",
     "Reuse this App Store Connect API Key?",
+    "Generate a new Apple Provisioning Profile?",
 ]
 ANSI = re.compile(rb"\x1b\[[0-9;?]*[A-Za-z]")
 CMD = ["eas", "credentials:configure-build", "--platform", "ios", "--profile", "production"]

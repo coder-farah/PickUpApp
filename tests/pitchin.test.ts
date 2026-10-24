@@ -55,6 +55,7 @@ describe("games without a cap", () => {
     expect(goingCount(14, 14)).toEqual({ count: "14", of: "/14" });
     expect(roomNote(14, 14)).toBe("Full");
     expect(roomNote(14, 11)).toBe("3 left");
+    expect(roomNote(14, 13, 2)).toBe("Full");
   });
 });
 

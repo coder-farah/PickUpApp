@@ -53,7 +53,7 @@ export const GET = api(async (): Promise<HomeView> => {
           ? position
             ? `You're #${position} on the waitlist`
             : "You're on the waitlist"
-          : [roomNote(next.capacity, next.inCount), next.capacity !== null && next.waitCount ? `${next.waitCount} on waitlist` : ""].filter(Boolean).join(" · ") ||
+          : [roomNote(next.capacity, next.inCount, next.waitCount), next.capacity !== null && next.waitCount ? `${next.waitCount} on waitlist` : ""].filter(Boolean).join(" · ") ||
             (next.status === "on" ? "Game on" : `${Math.max(next.minPlayers - next.inCount, 0)} more to play`);
     nextView = { ...cardView(next, now), whenLabel, note, position };
   }

@@ -142,7 +142,7 @@ async function Dashboard({ user }: { user: SessionUser }) {
 function NextUp({ game, now, position }: { game: GameCardData & { myOfferExpires?: Date | null }; now: Date; position: number | null }) {
   const local = inZone(game.startsAt, game.timezone);
   const going = goingCount(game.capacity, game.inCount);
-  const room = roomNote(game.capacity, game.inCount);
+  const room = roomNote(game.capacity, game.inCount, game.waitCount);
   // Waitlist numbers only show when there is a cap; offers and places in line only for the person they belong to.
   const foot =
     game.myStatus === "offered"

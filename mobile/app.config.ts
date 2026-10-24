@@ -9,7 +9,7 @@ const storeBuild = profile === "production" || profile === "preview";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 const appLinkDomain = process.env.APP_LINK_DOMAIN;
 // Filled in once by the "iOS setup" workflow (eas init). Push tokens need it.
-const EAS_PROJECT_ID = "";
+const EAS_PROJECT_ID = "c693dadd-6417-4dc0-94c4-54625cd5231a";
 
 const config: ExpoConfig = {
   name: "Pitchin",

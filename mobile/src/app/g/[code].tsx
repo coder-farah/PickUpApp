@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { Alert, Linking, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -8,7 +8,7 @@ import type { GameDetailView, RosterView } from "@/api/types";
 import { useCountdown } from "@/lib/countdown";
 import { shareLink } from "@/lib/share";
 import { Avatar, Faces } from "@/components/Avatar";
-import { Check, MapPin, Repeat, UserPlus, X } from "@/components/icons";
+import { Check, ChevronDown, MapPin, Repeat, UserPlus, X } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
 import { Sheet } from "@/components/Sheet";
 import { TopBar } from "@/components/TopBar";
@@ -32,6 +32,7 @@ export default function GameScreen() {
   const { data, isLoading, error, refetch, isRefetching } = useGame(code);
   const act = useGameAction(code);
   const [notice, setNotice] = useState<string | null>(null);
+  const [rules, setRules] = useState(false);
 
   if (isLoading) return <Loading />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load this game."} onRetry={() => void refetch()} />;
@@ -102,49 +103,42 @@ export default function GameScreen() {
             <ActionPanel data={data} run={run} busy={act.isPending} />
           </Card>
 
-          <View style={{ borderTopWidth: 1, borderColor: c.line }}>
-            <Detail label="When">{g.timeRange}</Detail>
-            <Detail label="Where">
-              <Pressable onPress={() => void Linking.openURL(g.mapsUrl)} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <MapPin size={15} color={c.muted} />
+          <View style={{ gap: 12 }}>
+            <Pressable onPress={() => void Linking.openURL(g.mapsUrl)} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <MapPin size={16} color={c.muted} />
+              <Body style={{ flexShrink: 1 }} numberOfLines={1}>
                 <Body style={{ textDecorationLine: "underline" }}>{g.locationName}</Body>
-              </Pressable>
-              {g.locationAddress ? (
-                <Body size={13} color={c.muted}>
-                  {g.locationAddress}
-                </Body>
-              ) : null}
-            </Detail>
-            <Detail label="Host">
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Avatar name={data.host.name} seed={data.host.id} photo={data.host.photo} size={24} />
-                <Body>{data.host.name}</Body>
-              </View>
-            </Detail>
-            <Detail label="Game on at">
-              <Body>
-                {g.minPlayers} players{" "}
-                {g.inCount >= g.minPlayers ? (
-                  <Body color={c.pitch}>Reached</Body>
-                ) : (
-                  <Body color={c.muted}>{g.minPlayers - g.inCount} to go</Body>
-                )}
+                {g.locationAddress ? <Body color={c.muted}> · {g.locationAddress}</Body> : null}
               </Body>
-              {g.decisionAt ? (
-                <Body size={13} color={c.muted}>
-                  Called off at {g.decisionAt} if short.
-                </Body>
-              ) : null}
-            </Detail>
-            {capped && (
-              <Detail label="When a spot opens">
-                <Body>{g.claimMinutes ? `Held ${g.claimMinutes} min for the next person in line` : "The next person in line moves in"}</Body>
-                <Body size={13} color={c.muted}>
-                  From {g.lastCall}, first to tap gets it.
-                </Body>
-              </Detail>
+            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Avatar name={data.host.name} seed={data.host.id} photo={data.host.photo} size={18} />
+              <Body color={c.ink2}>Hosted by {data.host.name}</Body>
+            </View>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Check size={16} color={g.inCount >= g.minPlayers ? c.pitch : c.muted} />
+              <Body color={c.ink2}>
+                On at {g.minPlayers} players ·{" "}
+                {g.inCount >= g.minPlayers ? <Body color={c.pitch}>reached</Body> : <Body color={c.muted}>{g.minPlayers - g.inCount} to go</Body>}
+              </Body>
+            </View>
+            <Pressable onPress={() => setRules((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: rules }} style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 4 }}>
+              <Body size={14} weight="medium" color={c.pitch}>
+                How this game runs
+              </Body>
+              <ChevronDown size={15} color={c.pitch} style={{ transform: [{ rotate: rules ? "180deg" : "0deg" }] }} />
+            </Pressable>
+            {rules && (
+              <View style={{ gap: 8, paddingLeft: 12, borderLeftWidth: 2, borderColor: c.line }}>
+                {g.decisionAt ? <Body size={14} color={c.ink2}>Called off at {g.decisionAt} if short.</Body> : null}
+                {capped && (
+                  <Body size={14} color={c.ink2}>
+                    {g.claimMinutes ? `When a spot opens, it's held ${g.claimMinutes} min for the next person in line.` : "When a spot opens, the next person in line moves in."} From {g.lastCall}, first to tap gets it.
+                  </Body>
+                )}
+                <Body size={14} color={c.ink2}>{g.guestsAllowed ? "You can bring up to 2 friends." : "Players only, no guests."}</Body>
+              </View>
             )}
-            <Detail label="Guests">{g.guestsAllowed ? "Bring up to 2 friends" : "Players only"}</Detail>
           </View>
 
           {g.notes ? (
@@ -195,18 +189,6 @@ function confirmRemove(s: RosterView, run: (a: GameAction, b?: { spotId?: string
     { text: "Keep", style: "cancel" },
     { text: "Remove", style: "destructive", onPress: () => void run("leave", { spotId: s.spotId }) },
   ]);
-}
-
-function Detail({ label, children }: { label: string; children: ReactNode }) {
-  const { c } = useTheme();
-  return (
-    <View style={{ flexDirection: "row", gap: 14, paddingVertical: 14, borderBottomWidth: 1, borderColor: c.line }}>
-      <Mono size={11} style={{ width: 110, paddingTop: 3 }}>
-        {label}
-      </Mono>
-      <View style={{ flex: 1, gap: 2 }}>{typeof children === "string" ? <Body>{children}</Body> : children}</View>
-    </View>
-  );
 }
 
 function RosterRow({ spot, index, canManage, onRemove }: { spot: RosterView; index: string; canManage: boolean; onRemove: () => void }) {

@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Alert, View } from "react-native";
+import { Alert, Pressable, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import type { SportKey } from "@/api/types";
 import { Chips, DateTimeField, toDateStr, toTimeStr } from "@/components/Choice";
 import { RulesFields, defaultRules, rulesBody, type RulesDraft } from "@/components/RulesFields";
 import { Body, Button, Disp, Field, Input, Mono, Page, Segmented, SwitchRow } from "@/components/ui";
+import { ChevronDown } from "@/components/icons";
 import { useTheme } from "@/theme";
 
 const SPORTS: { value: SportKey; label: string }[] = [
@@ -36,6 +37,28 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/** Everything past the basics, folded away until someone wants it. */
+function More({ summary, children }: { summary: string; children: ReactNode }) {
+  const { c } = useTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={{ gap: 18, borderTopWidth: 1, borderColor: c.line, paddingTop: 16 }}>
+      <Pressable onPress={() => setOpen((x) => !x)} accessibilityRole="button" accessibilityState={{ expanded: open }} style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <View style={{ flex: 1 }}>
+          <Body weight="semibold">More options</Body>
+          {!open && (
+            <Body size={13} color={c.muted} numberOfLines={2}>
+              {summary}
+            </Body>
+          )}
+        </View>
+        <ChevronDown size={18} color={c.ink2} style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }} />
+      </Pressable>
+      {open && <View style={{ gap: 18 }}>{children}</View>}
+    </View>
+  );
+}
+
 export default function HostScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ type?: string }>();
@@ -48,7 +71,7 @@ export default function HostScreen() {
     <Page padTop={insets.top + 12} style={{ paddingHorizontal: 16, gap: 22 }}>
       <View>
         <Mono eyebrow>Host</Mono>
-        <Disp size={52} style={{ marginTop: 4 }}>
+        <Disp size={40} style={{ marginTop: 4 }}>
           {type === "crew" ? "Start a weekly game" : "Post a game"}
         </Disp>
         <Body color={c.ink2} style={{ marginTop: 8 }}>
@@ -130,21 +153,21 @@ function OnceForm() {
             </Field>
           </View>
         </View>
-        <Field label="Length">
-          <Chips options={LENGTHS} value={f.durationMinutes} onChange={(durationMinutes) => set({ durationMinutes })} />
-        </Field>
         <Field label="Field or court">
           <Input value={f.locationName} onChangeText={(locationName) => set({ locationName })} placeholder="Garfield Square" />
         </Field>
+      </Section>
+
+      <More summary={`${LENGTHS.find((l) => l.value === f.durationMinutes)?.label ?? ""} · ${f.visibility === "public" ? "Anyone can find it" : "Invite only"} · ${f.hostPlays ? "You're playing" : "You're not playing"} · Address, notes, roster rules`}>
         <Field label="Address" hint="Puts the game on the map in Explore.">
           <Input value={f.locationAddress} onChangeText={(locationAddress) => set({ locationAddress })} placeholder="Harrison St & 25th St" />
+        </Field>
+        <Field label="Length">
+          <Chips options={LENGTHS} value={f.durationMinutes} onChange={(durationMinutes) => set({ durationMinutes })} />
         </Field>
         <Field label="Notes for players">
           <Input value={f.notes} onChangeText={(notes) => set({ notes })} placeholder="$5 for the field, pay on arrival. Bring a dark shirt." multiline maxLength={1000} style={{ minHeight: 90 }} />
         </Field>
-      </Section>
-
-      <Section title="Roster rules">
         <RulesFields value={rules} onChange={setRules} />
         <SwitchRow label="Call it off if we're short" hint={f.autoCancel ? `Decide ${f.decisionHoursBefore === 24 ? "a day" : `${f.decisionHoursBefore} hours`} before kickoff.` : "The game stays on however many come."} value={f.autoCancel} onValueChange={(autoCancel) => set({ autoCancel })} />
         {f.autoCancel && (
@@ -159,9 +182,6 @@ function OnceForm() {
             ]}
           />
         )}
-      </Section>
-
-      <Section title="Sharing">
         {me && me.managedCrews.length > 0 && (
           <Field label="Post in a crew" hint="Members get a heads-up about it.">
             <Chips scroll value={f.groupId} onChange={(groupId) => set({ groupId })} options={[{ value: "", label: "No crew" }, ...me.managedCrews.map((g) => ({ value: g.id, label: g.name }))]} />
@@ -178,7 +198,7 @@ function OnceForm() {
           />
         </Field>
         <SwitchRow label="I'm playing too" hint="Puts you on the roster." value={f.hostPlays} onValueChange={(hostPlays) => set({ hostPlays })} />
-      </Section>
+      </More>
 
       <Button title="Post game" size="lg" loading={busy} disabled={f.title.trim().length < 3 || !f.locationName.trim()} onPress={() => void post()} />
     </View>
@@ -237,6 +257,15 @@ function CrewForm() {
         <Field label="Home field or court">
           <Input value={f.locationName} onChangeText={(locationName) => set({ locationName })} placeholder="Crocker Amazon, Field 2" />
         </Field>
+        <Field label="Day">
+          <Chips scroll value={f.weekday} onChange={(weekday) => set({ weekday })} options={WEEKDAYS.map((d, i) => ({ value: i, label: d }))} />
+        </Field>
+        <Field label="Kickoff">
+          <DateTimeField mode="time" value={f.time} onChange={(time) => set({ time })} />
+        </Field>
+      </Section>
+
+      <More summary={`Address, length, RSVP and go/no-go times, roster rules · ${f.visibility === "public" ? "Anyone can find it" : "Invite only"}`}>
         <Field label="Address" hint="Puts your crew on the map in Explore.">
           <Input value={f.locationAddress} onChangeText={(locationAddress) => set({ locationAddress })} placeholder="799 Moscow St" />
         </Field>
@@ -255,15 +284,6 @@ function CrewForm() {
               { value: "private", label: "Invite only" },
             ]}
           />
-        </Field>
-      </Section>
-
-      <Section title="When you play">
-        <Field label="Day">
-          <Chips scroll value={f.weekday} onChange={(weekday) => set({ weekday })} options={WEEKDAYS.map((d, i) => ({ value: i, label: d }))} />
-        </Field>
-        <Field label="Kickoff">
-          <DateTimeField mode="time" value={f.time} onChange={(time) => set({ time })} />
         </Field>
         <Field label="Length">
           <Chips options={LENGTHS} value={f.durationMinutes} onChange={(durationMinutes) => set({ durationMinutes })} />
@@ -293,11 +313,8 @@ function CrewForm() {
             ]}
           />
         </Field>
-      </Section>
-
-      <Section title="Roster rules">
         <RulesFields value={rules} onChange={setRules} />
-      </Section>
+      </More>
 
       <Body size={13} color={c.muted}>
         You can add more weekly games, like a Saturday one, on the website after this.

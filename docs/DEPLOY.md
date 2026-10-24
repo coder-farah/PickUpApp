@@ -1,8 +1,11 @@
 # Deploying the server on Railway
 
-The website and the app's API are one Next.js server. `railway.json` sets the build, runs migrations before each deploy, and checks `/api/health`.
+The website and the app's API are one Next.js server. It needs its database migrated before each deploy. Railway no longer reads `railway.json` for new services, so set these in the service's **Settings > Deploy** instead:
 
-1. **New project > Deploy from GitHub repo**, pick this repository. Railway reads `railway.json`.
+- **Pre-deploy Command**: `npm run db:migrate`. Without it the server starts on an empty database and every login fails.
+- **Healthcheck Path**: `/api/health`.
+
+1. **New project > Deploy from GitHub repo**, pick this repository, then set the pre-deploy command and healthcheck above.
 2. **+ New > Database > PostgreSQL**. In the web service's variables, set `DATABASE_URL=${{Postgres.DATABASE_URL}}`.
 3. **Settings > Networking**: generate a domain, or add your own (like `pitchin.app`) and point its DNS at Railway.
 4. Set the variables below and deploy.
@@ -18,6 +21,6 @@ The website and the app's API are one Next.js server. `railway.json` sets the bu
 | `TWILIO_FROM_NUMBER` | alert texts for people without the app |
 | `APPLE_CLIENT_ID` | Services ID for the website's Apple button |
 | `APPLE_BUNDLE_IDS`, `APPLE_TEAM_ID`, `APPLE_KEY_ID`, `APPLE_PRIVATE_KEY` | the iPhone app's Apple sign-in, see [IOS.md](IOS.md) |
-| `AUTH_DEMO_PHONE`, `AUTH_DEMO_CODE` | App Review login |
+| `AUTH_DEMO_PHONE`, `AUTH_DEMO_CODE` | App Review login: any US number (written any way) and a code of at least 6 digits. Works without Twilio. |
 
 `npm run db:seed` loads demo games. Only run it on staging.

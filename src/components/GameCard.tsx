@@ -16,7 +16,7 @@ export function GameCard({ game, now = new Date(), showDay, className }: { game:
   const mine = game.myStatus ? myStatusLabel[game.myStatus] : undefined;
   const soon = game.startsAt.getTime() - now.getTime() < 12 * 3_600_000 && game.startsAt > now;
   const going = goingCount(game.capacity, game.inCount);
-  const room = roomNote(game.capacity, game.inCount);
+  const room = roomNote(game.capacity, game.inCount, game.waitCount);
 
   return (
     <Link

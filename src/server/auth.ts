@@ -7,6 +7,7 @@ import { and, desc, eq, getTableColumns, gt, isNull, sql as dsql } from "drizzle
 import { db, t } from "./db";
 import { env, verifyConfigured } from "./env";
 import { checkVerification, startVerification } from "./twilio";
+import { normalizePhone } from "@/lib/phone";
 
 const COOKIE = "pitchin_session";
 const SESSION_DAYS = 90;
@@ -69,10 +70,13 @@ export async function sendLoginCode(phone: string) {
   console.log(`[login] code for ${phone}: ${code} (or ${DEV_CODE} in development)`);
 }
 
-const isDemo = (phone: string) => !!env.demo.phone && phone === env.demo.phone && env.demo.code.length >= 6;
+// AUTH_DEMO_PHONE may be written any way ("(555) 555-0100", "5555550100"); compare it in E.164 like the input.
+const demoPhone = normalizePhone(env.demo.phone);
+const demoCode = env.demo.code.trim();
+const isDemo = (phone: string) => !!demoPhone && phone === demoPhone && demoCode.length >= 6;
 
 async function codeIsValid(phone: string, code: string) {
-  if (isDemo(phone)) return timingSafeEqual(Buffer.from(sha256(code)), Buffer.from(sha256(env.demo.code)));
+  if (isDemo(phone)) return timingSafeEqual(Buffer.from(sha256(code)), Buffer.from(sha256(demoCode)));
   if (verifyConfigured()) return checkVerification(phone, code);
   if (!env.isProd && code === DEV_CODE) return true;
   const [row] = await db

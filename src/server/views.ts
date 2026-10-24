@@ -75,7 +75,7 @@ export function cardView(g: GameCardData & { myOfferExpires?: Date | null }, now
     capacity: g.capacity,
     inCount: g.inCount,
     going: `${going.count}${going.of}`,
-    room: state.key === "cancelled" ? "" : roomNote(g.capacity, g.inCount),
+    room: state.key === "cancelled" ? "" : roomNote(g.capacity, g.inCount, g.waitCount),
     state,
     my: mine ? { status: mine, ...myStatusLabel[mine] } : null,
     offerExpiresAt: iso(g.myOfferExpires),
@@ -110,7 +110,7 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
     now,
   );
   // Seats held for someone count against the cap too.
-  card.room = card.state.key === "cancelled" ? "" : roomNote(g.capacity, p.held);
+  card.room = card.state.key === "cancelled" ? "" : roomNote(g.capacity, p.held, p.queue.length);
   const phase: GameDetailView["game"]["phase"] =
     g.status === "cancelled"
       ? "cancelled"

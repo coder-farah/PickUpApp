@@ -30,11 +30,14 @@ export function goingCount(capacity: number | null, inCount: number) {
   return { count: String(inCount), of: capacity === null ? "" : `/${capacity}` };
 }
 
-/** The note next to the count: "Full", "3 left", or nothing for games without a cap. */
-export function roomNote(capacity: number | null, held: number) {
+/**
+ * The note next to the count: "Full", "3 left", or nothing for games without a cap.
+ * A capped game with anyone waiting is full, since a freed spot goes to the line first.
+ */
+export function roomNote(capacity: number | null, held: number, waiting = 0) {
   if (capacity === null) return "";
   const left = Math.max(capacity - held, 0);
-  return left === 0 ? "Full" : `${left} left`;
+  return left === 0 || waiting > 0 ? "Full" : `${left} left`;
 }
 
 /** What the viewer's own spot looks like on cards. Waitlist wording only ever reaches people on it. */

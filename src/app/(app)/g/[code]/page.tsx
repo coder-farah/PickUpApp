@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!data) return { title: "Game not found" };
   const { game } = data;
   const going = goingCount(game.capacity, data.playing.length);
-  const room = roomNote(game.capacity, data.held);
+  const room = roomNote(game.capacity, data.held, data.queue.length);
   const description = `${fmtWhen(game.startsAt, game.timezone)} at ${game.locationName}. ${going.count}${going.of} going${room ? ` · ${room}` : ""}.`;
   return { title: game.title, description, openGraph: { title: game.title, description }, twitter: { card: "summary_large_image" } };
 }
@@ -59,7 +59,7 @@ export default async function GamePage({ params, searchParams }: Props) {
   const capped = game.capacity !== null;
   const left = spotsLeft(game.capacity, data.held);
   const going = goingCount(game.capacity, playing.length);
-  const room = roomNote(game.capacity, data.held);
+  const room = roomNote(game.capacity, data.held, data.queue.length);
   const summary = [
     `${sportEmoji(game.sport)} ${game.title}`,
     `${fmtWhen(game.startsAt, game.timezone)} · ${game.locationName}`,

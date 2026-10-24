@@ -31,6 +31,7 @@ Settings > Secrets and variables > Actions.
 | Variable | Value |
 | --- | --- |
 | `ASC_APP_ID` | the app's Apple ID from App Store Connect |
+| `APPLE_TEAM_TYPE` | `COMPANY_OR_ORGANIZATION` if your Apple Developer membership is a company (optional; defaults to `INDIVIDUAL`) |
 | `API_URL` | the production server, like `https://pitchin.app` |
 | `APP_LINK_DOMAIN` | its domain, like `pitchin.app`, for universal links |
 | `STAGING_API_URL`, `STAGING_APP_LINK_DOMAIN` | the same for staging (optional) |

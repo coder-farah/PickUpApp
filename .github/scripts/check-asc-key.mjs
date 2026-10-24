@@ -17,10 +17,13 @@ try {
 }
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const now = Math.floor(Date.now() / 1000);
-const body = `${b64({ alg: "ES256", kid: kid.trim(), typ: "JWT" })}.${b64({ iss: iss.trim(), iat: now, exp: now + 600, aud: "appstoreconnect-v1" })}`;
-const sig = sign("sha256", Buffer.from(body), { key, dsaEncoding: "ieee-p1363" }).toString("base64url");
-for (const path of ["/v1/apps?limit=1", "/v1/certificates?limit=1"]) {
-  const r = await fetch(`https://api.appstoreconnect.apple.com${path}`, { headers: { Authorization: `Bearer ${body}.${sig}` } });
-  const j = await r.json().catch(() => ({}));
-  console.log(path, "->", r.status, (j.errors ?? []).map((e) => `${e.code}: ${e.detail}`).join(" | "));
+// A team key signs with the issuer ID; an individual key signs with sub "user" instead.
+for (const [label, claims] of [["as a team key", { iss: iss.trim() }], ["as an individual key", { sub: "user" }]]) {
+  const body = `${b64({ alg: "ES256", kid: kid.trim(), typ: "JWT" })}.${b64({ ...claims, iat: now, exp: now + 600, aud: "appstoreconnect-v1" })}`;
+  const sig = sign("sha256", Buffer.from(body), { key, dsaEncoding: "ieee-p1363" }).toString("base64url");
+  for (const path of ["/v1/apps?limit=1", "/v1/certificates?limit=1"]) {
+    const r = await fetch(`https://api.appstoreconnect.apple.com${path}`, { headers: { Authorization: `Bearer ${body}.${sig}` } });
+    const j = await r.json().catch(() => ({}));
+    console.log(label, path, "->", r.status, (j.errors ?? []).map((e) => `${e.code}: ${e.title}`).join(" | "));
+  }
 }

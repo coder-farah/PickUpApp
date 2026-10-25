@@ -55,13 +55,7 @@ export default function HomeScreen() {
       </TopBar>
       <BallRack games={alsoPlaying.slice(0, MAX_BALLS)} motion={motion} top={headerBottom} />
       <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={motion.onScroll}>
-        <NightHero
-          decor={
-            <Animated.View pointerEvents="none" style={{ position: "absolute", right: 38, top: 128, transform: [{ rotate: motion.spin }] }}>
-              <SoccerBall size={44} />
-            </Animated.View>
-          }
-        >
+        <NightHero>
           <Body size={15} color="rgba(255,255,255,0.6)">
             {data.greeting}
           </Body>
@@ -197,8 +191,6 @@ function useCollapse(nextBottom: number, tops: number[], headerBottom: number, m
       ballsIn,
       pin: range(start + 40, end, [0, 1]),
       glass: range(0, 24, [0, 1]),
-      // The hero ball rolls as the page moves.
-      spin: y.interpolate({ inputRange: [0, 300], outputRange: ["0deg", "-180deg"] }),
       pinnedStyle: { opacity: range(start + 40, end, [0, 1]), transform: [{ translateY: range(start, end, [18, 0]) }, { scale: range(start, end, [0.94, 1]) }] },
       panelStyle: {
         opacity: range(start - 40, end - 30, [1, 0]),

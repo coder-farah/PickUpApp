@@ -282,12 +282,12 @@ function PinnedNext({ game, ...rsvp }: RsvpHandlers & { game: NextUpView }) {
     : null;
   // The row opens the game; the RSVP pill sits beside it rather than inside, so the two taps never overlap.
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10, paddingRight: 14, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.08)" }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, paddingRight: 4 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Next up: ${game.title}, ${game.whenLabel} ${game.time} ${game.ampm}`}
         onPress={() => router.push(`/g/${game.code}`)}
-        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingLeft: 14 }}
+        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6, paddingLeft: 4 }}
       >
         <View>
           <Mono size={10} color={c.lime}>

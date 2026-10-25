@@ -5,7 +5,7 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, useTheme } from "@/theme";
-import { Bell, ChevronLeft, ShareIcon } from "./icons";
+import { Bell, ChevronLeft, Ellipsis, ShareIcon } from "./icons";
 import { LogoMark } from "./Logo";
 
 /** How far the glass fades out below the header. */
@@ -32,6 +32,7 @@ export function TopBar({
   back,
   unread,
   onShare,
+  onMore,
   glass = true,
   progress,
   onLayout,
@@ -41,6 +42,8 @@ export function TopBar({
   back?: boolean;
   unread?: number;
   onShare?: () => void;
+  /** A "…" button for less common actions. */
+  onMore?: () => void;
   glass?: boolean;
   /** Drives the glass from scroll instead (0 clear, 1 glass), so it can fade in step with something else. */
   progress?: Animated.AnimatedInterpolation<number>;
@@ -89,6 +92,11 @@ export function TopBar({
       {onShare && (
         <Pressable accessibilityLabel="Share" onPress={onShare} style={chip}>
           <ShareIcon size={18} color={fg} />
+        </Pressable>
+      )}
+      {onMore && (
+        <Pressable accessibilityLabel="More" onPress={onMore} style={chip}>
+          <Ellipsis size={18} color={fg} />
         </Pressable>
       )}
       {unread !== undefined && (

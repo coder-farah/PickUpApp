@@ -31,6 +31,18 @@ describe("store config", () => {
     expect(picker[1]).toMatchObject({ cameraPermission: false, microphonePermission: false });
   });
 
+  it("asks for the calendar only to add a game, and never for reminders", async () => {
+    const cal = (await load()).plugins.find((p: unknown) => Array.isArray(p) && p[0] === "expo-calendar");
+    expect(cal[1]).toEqual({ calendarPermission: expect.stringMatching(/Add to calendar/), remindersPermission: false });
+  });
+
+  it("takes over-the-air updates only in store builds, one channel per profile", async () => {
+    expect((await load({ EAS_BUILD_PROFILE: "production" })).updates).toMatchObject({ enabled: true, url: expect.stringMatching(/^https:\/\/u\.expo\.dev\//) });
+    expect((await load()).updates.enabled).toBe(false);
+    const eas = JSON.parse(readFileSync(`${__dirname}/../eas.json`, "utf8"));
+    expect([eas.build.production.channel, eas.build.preview.channel]).toEqual(["production", "preview"]);
+  });
+
   it("links the app domain only when one is set", async () => {
     expect((await load()).ios.associatedDomains).toBeUndefined();
     expect((await load({ APP_LINK_DOMAIN: "pitchin.app" })).ios.associatedDomains).toEqual(["applinks:pitchin.app"]);

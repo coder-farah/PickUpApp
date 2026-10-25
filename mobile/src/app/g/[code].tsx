@@ -9,6 +9,8 @@ import type { CohostCandidatesView, GameDetailView, RosterView } from "@/api/typ
 import { useCountdown } from "@/lib/countdown";
 import { shareLink } from "@/lib/share";
 import { openDirections } from "@/lib/directions";
+import { addToCalendar } from "@/lib/calendar";
+import { showMenu } from "@/lib/menu";
 import { Avatar, Faces } from "@/components/Avatar";
 import { Check, ChevronDown, MapPin, Repeat, UserPlus, X } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
@@ -17,7 +19,7 @@ import { TopBar, useScrolled } from "@/components/TopBar";
 import { Badge, Body, Button, Card, Disp, ErrorView, Input, Loading, Mono, Notice, Page, SectionTitle } from "@/components/ui";
 import { useTheme } from "@/theme";
 
-const SPORT = { soccer: "Soccer", basketball: "Basketball", volleyball: "Volleyball", ultimate: "Ultimate", other: "Pickup" } as const;
+type Toast = { text: string; action?: { label: string; onPress: () => void } };
 
 /** "Marco, Jess and 10 others" */
 function whoLine(names: string[]) {
@@ -34,21 +36,22 @@ export default function GameScreen() {
   const { scrolled, onScroll } = useScrolled();
   const { data, isLoading, error, refetch, isRefetching } = useGame(code);
   const act = useGameAction(code);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Toast | null>(null);
   const [rules, setRules] = useState(false);
+  const [managing, setManaging] = useState(false);
 
-  if (isLoading) return <Loading />;
+  if (isLoading) return <Loading variant="hero" />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load this game."} onRetry={() => void refetch()} />;
   const g = data.game;
   const [count, of] = g.going.split("/");
   const capped = g.capacity !== null;
 
-  const run = async (action: GameAction, body: { spotId?: string; name?: string; reason?: string; capacity?: number | null } = {}, done?: string) => {
+  const run: Run = async (action, body = {}, done, then) => {
     setNotice(null);
     try {
       await act.mutateAsync({ action, ...body });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-      if (done) setNotice(done);
+      if (done) setNotice({ text: done, action: then });
     } catch (err) {
       Alert.alert("Couldn't do that", (err as Error).message);
     }
@@ -56,12 +59,24 @@ export default function GameScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night back onShare={() => void shareLink(g.shareText.replace(/\nRSVP here: .*$/, "\nRSVP here:"), g.shareUrl)} glass={scrolled} />
+      <TopBar
+        night
+        back
+        onShare={() => void shareLink(g.shareText.replace(/\nRSVP here: .*$/, "\nRSVP here:"), g.shareUrl)}
+        onMore={() =>
+          showMenu(g.title, [
+            { label: "Add to calendar", onPress: () => void addToCalendar(g) },
+            { label: "Get directions", onPress: () => openDirections(g) },
+            { label: "Report this game", destructive: true, onPress: () => void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Report game ${g.code}`)}&body=${encodeURIComponent(`${API_URL}/g/${g.code}\n\nWhat's wrong:`)}`) },
+          ])
+        }
+        glass={scrolled}
+      />
       <Page refreshing={isRefetching} onRefresh={() => void refetch()} tabBar={false} onScroll={onScroll}>
         <NightHero fade={100}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Mono size={11.5} color={c.lime}>
-              {SPORT[g.sport]} · {g.weekly ? "Weekly" : "One-time"}
+              {g.weekly ? "Weekly game" : "One-time game"}
             </Mono>
             {(g.phase === "cancelled" || g.phase === "live" || g.phase === "soon") && <Badge tone={g.phase === "live" ? "lime" : "neutral"} label={g.state.label} />}
           </View>
@@ -98,8 +113,17 @@ export default function GameScreen() {
 
         <View style={{ marginTop: -64, paddingHorizontal: 16, gap: 28 }}>
           {notice ? (
-            <View style={{ backgroundColor: c.night, borderRadius: 16, padding: 14 }}>
-              <Body color="#FFFFFF">{notice}</Body>
+            <View style={{ backgroundColor: c.night, borderRadius: 16, padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}>
+              <Body color="#FFFFFF" style={{ flex: 1 }}>
+                {notice.text}
+              </Body>
+              {notice.action && (
+                <Pressable accessibilityRole="button" hitSlop={10} onPress={notice.action.onPress}>
+                  <Body weight="semibold" color={c.lime}>
+                    {notice.action.label}
+                  </Body>
+                </Pressable>
+              )}
             </View>
           ) : null}
           <Card style={{ padding: 18 }}>
@@ -158,11 +182,23 @@ export default function GameScreen() {
           ) : null}
 
           <View>
-            <SectionTitle action={<Mono>{g.going} going</Mono>}>Who&apos;s in</SectionTitle>
+            <SectionTitle
+              action={
+                data.canManage && data.playing.length + data.queue.length > (data.me ? 1 : 0) ? (
+                  <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setManaging((m) => !m)}>
+                    <Mono color={c.pitch}>{managing ? "Done" : "Manage list"}</Mono>
+                  </Pressable>
+                ) : (
+                  <Mono>{g.going} going</Mono>
+                )
+              }
+            >
+              Who&apos;s in
+            </SectionTitle>
             {data.playing.length === 0 ? (
               <Body color={c.muted}>Nobody yet. Be the first one in.</Body>
             ) : (
-              data.playing.map((s, i) => <RosterRow key={s.spotId} spot={s} index={`${i + 1}`} canManage={data.canManage} onRemove={() => confirmRemove(s, run)} />)
+              data.playing.map((s, i) => <RosterRow key={s.spotId} spot={s} index={`${i + 1}`} canManage={managing} onRemove={() => confirmRemove(s, run)} />)
             )}
           </View>
 
@@ -170,7 +206,7 @@ export default function GameScreen() {
             <View>
               <SectionTitle action={<Mono>{data.queue.length} in line</Mono>}>Waitlist</SectionTitle>
               {data.queue.map((s, i) => (
-                <RosterRow key={s.spotId} spot={s} index={`#${i + 1}`} canManage={data.canManage} onRemove={() => confirmRemove(s, run)} />
+                <RosterRow key={s.spotId} spot={s} index={`#${i + 1}`} canManage={managing} onRemove={() => confirmRemove(s, run)} />
               ))}
             </View>
           )}
@@ -178,15 +214,7 @@ export default function GameScreen() {
           {data.game.group && !data.viewerIsMember && <JoinCrewCard slug={data.game.group.slug} name={data.game.group.name} />}
 
           {data.canManage && g.phase !== "cancelled" && g.phase !== "played" && <HostTools data={data} run={run} busy={act.isPending} />}
-
-          <Body
-            size={13}
-            color={c.muted}
-            style={{ textAlign: "center" }}
-            onPress={() => void Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Report game ${g.code}`)}&body=${encodeURIComponent(`${API_URL}/g/${g.code}\n\nWhat's wrong:`)}`)}
-          >
-            Report this game
-          </Body>
+          {data.canManage && !g.weekly && <Button title="Post again" variant="secondary" icon={<Repeat size={16} color={c.ink} />} onPress={() => router.push(`/host?from=${g.code}`)} />}
         </View>
       </Page>
     </View>
@@ -261,7 +289,7 @@ function Cohosts({ data }: { data: GameDetailView }) {
           People on this game, your crew, and players you've played with.
         </Body>
         {candidates.isLoading ? (
-          <Loading />
+          <Loading variant="rows" />
         ) : !candidates.data?.people.length ? (
           <Body color={c.muted}>No one to add yet. Once people join this game or play with you, they'll show up here.</Body>
         ) : (
@@ -291,7 +319,7 @@ function Cohosts({ data }: { data: GameDetailView }) {
   );
 }
 
-function confirmRemove(s: RosterView, run: (a: GameAction, b?: { spotId?: string }) => Promise<void>) {
+function confirmRemove(s: RosterView, run: Run) {
   Alert.alert(`Take ${s.name} off?`, "Their spot goes to the next person in line, and they get a notification.", [
     { text: "Keep", style: "cancel" },
     { text: "Remove", style: "destructive", onPress: () => void run("leave", { spotId: s.spotId }) },
@@ -334,7 +362,7 @@ function RosterRow({ spot, index, canManage, onRemove }: { spot: RosterView; ind
   );
 }
 
-type Run = (a: GameAction, b?: { spotId?: string; name?: string; reason?: string; capacity?: number | null }, done?: string) => Promise<void>;
+type Run = (a: GameAction, b?: { spotId?: string; name?: string; reason?: string; capacity?: number | null }, done?: string, then?: Toast["action"]) => Promise<void>;
 
 function ActionPanel({ data, run, busy }: { data: GameDetailView; run: Run; busy: boolean }) {
   const { c } = useTheme();
@@ -343,7 +371,6 @@ function ActionPanel({ data, run, busy }: { data: GameDetailView; run: Run; busy
   const capped = g.capacity !== null;
   const offerLeft = useCountdown(me?.status === "offered" ? me.offerExpiresAt : null);
   const [rsvpOpen, setRsvpOpen] = useState(false);
-  const [confirmOut, setConfirmOut] = useState(false);
   const [guest, setGuest] = useState("");
 
   if (g.phase === "cancelled")
@@ -388,87 +415,76 @@ function ActionPanel({ data, run, busy }: { data: GameDetailView; run: Run; busy
           ) : null}
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          <Button title="Claim my spot" size="lg" style={{ flex: 1 }} loading={busy} onPress={() => void run("claim", {}, "You're in. See you there.")} />
+          <Button title="Claim my spot" size="lg" style={{ flex: 1 }} loading={busy} onPress={() => void run("claim", {}, "You're in. See you there.", { label: "Add to calendar", onPress: () => void addToCalendar(g) })} />
           <Button title="Pass" size="lg" variant="ghost" onPress={() => void run("decline", {}, "Passed. The spot went to the next person.")} />
         </View>
       </View>
     );
 
-  if (me?.status === "in")
+  if (me?.status === "in") {
+    // One tap drops you, like on Home. Past last call it counts as a late drop, so that one gets a confirm.
+    const drop = () => {
+      const out = () => void run("leave", { spotId: me.spotId }, "You're out. Your spot is open again.", { label: "Undo", onPress: () => void run("join", {}, "You're back in.") });
+      if (!g.lastCallPassed) return out();
+      Alert.alert("Drop out after last call?", `It counts as a late drop${me.guests.length ? ", and your guests' spots go too" : ""}.`, [
+        { text: "Keep my spot", style: "cancel" },
+        { text: "I'm out", style: "destructive", onPress: out },
+      ]);
+    };
     return (
       <View style={{ gap: 14 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-          <View style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: c.lime, flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="You're in. Tap to drop out."
+            disabled={busy}
+            onPress={drop}
+            style={({ pressed }) => ({ height: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: c.lime, flexDirection: "row", alignItems: "center", gap: 8, opacity: busy ? 0.6 : pressed ? 0.85 : 1 })}
+          >
             <Check size={16} color={c.limeInk} strokeWidth={3} />
             <Body weight="semibold" color={c.limeInk}>
               You&apos;re in
             </Body>
-          </View>
+          </Pressable>
           <Body size={14} color={c.muted} style={{ flex: 1 }}>
-            {me.guests.length ? `With ${me.guests.map((x) => `${x.name}${x.status !== "in" ? " (waitlist)" : ""}`).join(", ")}` : "We'll let you know if anything changes."}
+            {me.guests.length ? `With ${me.guests.map((x) => `${x.name}${x.status !== "in" ? " (waitlist)" : ""}`).join(", ")}` : "Tap to drop out. We'll let you know if anything changes."}
           </Body>
         </View>
-        <Button title="Edit RSVP" variant="secondary" onPress={() => (setConfirmOut(false), setRsvpOpen(true))} />
-        <Sheet open={rsvpOpen} onClose={() => setRsvpOpen(false)} title="Change your RSVP">
+        {g.guestsAllowed && <Button title={me.guests.length ? "Your guests" : "Bring a friend"} variant="secondary" icon={<UserPlus size={16} color={c.ink} />} onPress={() => setRsvpOpen(true)} />}
+        <Sheet open={rsvpOpen} onClose={() => setRsvpOpen(false)} title="Bring a friend">
           <Body size={14} color={c.muted} style={{ marginTop: -8 }}>
-            {g.title} · {g.when}
+            {g.title} · {g.when} · up to 2 friends
           </Body>
-          {g.guestsAllowed && (
-            <View style={{ gap: 10 }}>
-              <Mono eyebrow>Bring a friend</Mono>
-              {me.guests.map((x) => (
-                <View key={x.spotId} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                  <Avatar name={x.name} seed={x.spotId} size={32} />
-                  <Body style={{ flex: 1 }}>
-                    {x.name}
-                    {x.status !== "in" ? <Body color={c.muted}> · waitlist</Body> : null}
-                  </Body>
-                  <Button title="Remove" size="sm" variant="ghost" onPress={() => void run("leave", { spotId: x.spotId })} />
-                </View>
-              ))}
-              {me.guests.length < 2 && (
-                <View style={{ flexDirection: "row", gap: 8 }}>
-                  <Input value={guest} onChangeText={setGuest} placeholder="Their name" maxLength={40} style={{ flex: 1 }} />
-                  <Button
-                    title="Add"
-                    variant="secondary"
-                    icon={<UserPlus size={16} color={c.ink} />}
-                    disabled={!guest.trim()}
-                    onPress={async () => {
-                      await run("guest", { name: guest.trim() });
-                      setGuest("");
-                    }}
-                  />
-                </View>
-              )}
-            </View>
-          )}
-          {confirmOut ? (
-            <View style={{ gap: 10, padding: 14, borderRadius: 16, backgroundColor: c.signalSoft }}>
-              <Body size={14} color={c.ink}>
-                {g.lastCallPassed ? "It's past last call, so this counts as a late drop. " : ""}
-                Your spot{me.guests.length ? " and your guests' spots" : ""} will go {capped && data.queue.length ? "to the next person on the waitlist" : "back to the game"}.
-              </Body>
+          <View style={{ gap: 10 }}>
+            {me.guests.map((x) => (
+              <View key={x.spotId} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <Avatar name={x.name} seed={x.spotId} size={32} />
+                <Body style={{ flex: 1 }}>
+                  {x.name}
+                  {x.status !== "in" ? <Body color={c.muted}> · waitlist</Body> : null}
+                </Body>
+                <Button title="Remove" size="sm" variant="ghost" onPress={() => void run("leave", { spotId: x.spotId })} />
+              </View>
+            ))}
+            {me.guests.length < 2 && (
               <View style={{ flexDirection: "row", gap: 8 }}>
-                <Button title="Keep my spot" variant="secondary" style={{ flex: 1 }} onPress={() => setConfirmOut(false)} />
+                <Input value={guest} onChangeText={setGuest} placeholder="Their name" maxLength={40} style={{ flex: 1 }} />
                 <Button
-                  title="Yes, I'm out"
-                  variant="danger"
-                  style={{ flex: 1 }}
-                  loading={busy}
+                  title="Add"
+                  variant="secondary"
+                  disabled={!guest.trim()}
                   onPress={async () => {
-                    await run("leave", { spotId: me.spotId }, "You're out. Your spot is open again.");
-                    setRsvpOpen(false);
+                    await run("guest", { name: guest.trim() });
+                    setGuest("");
                   }}
                 />
               </View>
-            </View>
-          ) : (
-            <Button title="I can't make it" variant="ghost" onPress={() => setConfirmOut(true)} />
-          )}
+            )}
+          </View>
         </Sheet>
       </View>
     );
+  }
 
   // Only people on the waitlist see their place in it.
   if (me?.status === "waitlist") {
@@ -514,7 +530,13 @@ function ActionPanel({ data, run, busy }: { data: GameDetailView; run: Run; busy
           {full ? "Join the waitlist. When someone drops, the next person in line gets a heads-up." : "One tap and you're on the roster."}
         </Body>
       </View>
-      <Button title={full ? "Join waitlist" : "I'm in"} size="lg" variant={full ? "secondary" : "primary"} loading={busy} onPress={() => void run("join", {}, full ? "You're on the waitlist." : "You're in. See you there.")} />
+      <Button
+        title={full ? "Join waitlist" : "I'm in"}
+        size="lg"
+        variant={full ? "secondary" : "primary"}
+        loading={busy}
+        onPress={() => void run("join", {}, full ? "You're on the waitlist." : "You're in. See you there.", full ? undefined : { label: "Add to calendar", onPress: () => void addToCalendar(g) })}
+      />
     </View>
   );
 }

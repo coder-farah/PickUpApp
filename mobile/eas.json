@@ -28,7 +28,8 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://staging.pitchin.app",
         "APP_LINK_DOMAIN": "staging.pitchin.app"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "extends": "base",
@@ -37,7 +38,8 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://pitchin.app",
         "APP_LINK_DOMAIN": "pitchin.app"
-      }
+      },
+      "channel": "production"
     }
   }
 }

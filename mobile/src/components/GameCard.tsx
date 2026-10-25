@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Alert, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -19,7 +20,7 @@ export function GameCard({ game, showDay }: { game: GameCardView; showDay?: bool
       style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 14, opacity: s.key === "cancelled" ? 0.6 : 1, backgroundColor: c.surface }}
     >
       <View style={{ width: 68 }}>
-        {showDay && <Mono size={10.5} style={{ marginBottom: 4 }}>{game.dayLabel.replace(/,.*/, "")}</Mono>}
+        {showDay && <Mono size={10.5} style={{ marginBottom: 4 }}>{game.dayLabel.replace(/^(\w+), \w+ (\d+)$/, "$1 $2")}</Mono>}
         <Disp size={28} numberOfLines={1}>{game.time}</Disp>
         <Mono size={11} style={{ marginTop: 4 }}>{game.ampm}</Mono>
       </View>
@@ -65,19 +66,28 @@ export function GameCard({ game, showDay }: { game: GameCardView; showDay?: bool
   );
 }
 
-/** One tap to get on a game from any list. A full game puts you on its waitlist, and the chip says so first. */
+/**
+ * One tap to get on a game from any list. A full game puts you on its waitlist, and the chip says so first. The chip
+ * turns into the badge as soon as it's tapped and goes back only if the server says no.
+ */
 function RsvpChip({ game }: { game: GameCardView }) {
   const { c } = useTheme();
   const act = useGameAction(game.code);
   const full = game.state.key === "full" || game.room === "Full";
+  const [sent, setSent] = useState(false);
+  useEffect(() => setSent(false), [game.my]);
   const join = async () => {
+    setSent(true);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     try {
       await act.mutateAsync({ action: "join" });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     } catch (err) {
+      setSent(false);
       Alert.alert("Couldn't RSVP", (err as Error).message);
     }
   };
+  if (sent) return <Badge tone={full ? "neutral" : "lime"} label={full ? "Waitlist" : "You're in"} />;
   return (
     <Pressable
       accessibilityRole="button"
@@ -85,10 +95,10 @@ function RsvpChip({ game }: { game: GameCardView }) {
       disabled={act.isPending}
       onPress={() => void join()}
       hitSlop={8}
-      style={{ height: 28, paddingHorizontal: 12, borderRadius: 14, justifyContent: "center", backgroundColor: full ? c.surface2 : c.night, opacity: act.isPending ? 0.6 : 1 }}
+      style={{ height: 28, paddingHorizontal: 12, borderRadius: 14, justifyContent: "center", backgroundColor: full ? c.surface2 : c.night }}
     >
       <Mono size={10.5} color={full ? c.ink2 : c.lime}>
-        {act.isPending ? "…" : full ? "Waitlist" : "RSVP"}
+        {full ? "Waitlist" : "RSVP"}
       </Mono>
     </Pressable>
   );

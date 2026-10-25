@@ -171,6 +171,18 @@ export const games = pgTable(
   ],
 );
 
+/** People who run a game alongside its host: they can edit it, manage the list and call it off. */
+export const gameCohosts = pgTable(
+  "game_cohosts",
+  {
+    gameId: uuid("game_id").notNull().references(() => games.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    addedBy: uuid("added_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.gameId, t.userId] }), index("game_cohosts_user_idx").on(t.userId)],
+);
+
 /**
  * One place in a game. A guest (+1) is its own spot, owned by the player who brought them.
  * Order on the waitlist is `queued_at`.

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, gt, inArray, isNotNull, lte, ne, or, sql as dsql, type AnyColumn, type SQL } from "drizzle-orm";
 import { db, t } from "./db";
-import { isManager } from "./engine";
+import { isOwner } from "./engine";
 import type { Game, Group, Sport, Spot } from "./db/schema";
 import type { Face } from "@/components/Avatar";
 
@@ -127,10 +127,19 @@ export async function getGamePage(code: string, viewerId: string | null) {
     viewerIsMember = !!m;
   }
 
+  const cohosts = await db
+    .select({ id: t.users.id, name: t.users.name, v: t.users.avatarVersion })
+    .from(t.gameCohosts)
+    .innerJoin(t.users, eq(t.users.id, t.gameCohosts.userId))
+    .where(eq(t.gameCohosts.gameId, row.g.id))
+    .orderBy(asc(t.gameCohosts.createdAt));
+  const canHandOff = viewerId ? await isOwner(db, row.g, viewerId) : false;
+
   return {
     game: row.g,
     group: row.group,
     host: row.host,
+    cohosts,
     playing,
     queue,
     mine,
@@ -138,7 +147,8 @@ export async function getGamePage(code: string, viewerId: string | null) {
     myGuests: mine.filter((s) => s.guestName !== null),
     myPosition,
     held: roster.filter((s) => s.status === "in" || s.status === "offered").length,
-    canManage: viewerId ? await isManager(db, row.g, viewerId) : false,
+    canManage: canHandOff || (!!viewerId && cohosts.some((c) => c.id === viewerId)),
+    canHandOff,
     viewerIsMember,
   };
 }

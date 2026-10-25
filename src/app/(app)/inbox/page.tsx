@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { after } from "next/server";
 import { and, eq, isNull } from "drizzle-orm";
-import { Bell, CalendarCheck, CalendarClock, CalendarX, Clock, Megaphone, Sparkles, UserMinus, Users } from "lucide-react";
+import { Bell, CalendarCheck, CalendarClock, CalendarX, Clock, Crown, Megaphone, Sparkles, UserMinus, UserPlus, Users } from "lucide-react";
 import { requireUser } from "@/server/auth";
 import { getInbox } from "@/server/queries";
 import { db, t } from "@/server/db";
@@ -20,6 +20,8 @@ const icons: Record<string, { icon: React.ReactNode; tone: string }> = {
   game_confirmed: { icon: <CalendarCheck className="size-4" />, tone: "bg-pitch-soft text-pitch" },
   rsvps_open: { icon: <Users className="size-4" />, tone: "bg-pitch-soft text-pitch" },
   game_cancelled: { icon: <CalendarX className="size-4" />, tone: "bg-danger-soft text-danger" },
+  cohost_added: { icon: <UserPlus className="size-4" />, tone: "bg-pitch-soft text-pitch" },
+  host_handoff: { icon: <Crown className="size-4" />, tone: "bg-lime text-lime-ink" },
   game_changed: { icon: <CalendarClock className="size-4" />, tone: "bg-amber-soft text-amber" },
   game_at_risk: { icon: <Clock className="size-4" />, tone: "bg-amber-soft text-amber" },
   offer_expired: { icon: <Clock className="size-4" />, tone: "bg-amber-soft text-amber" },

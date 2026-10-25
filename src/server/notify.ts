@@ -13,6 +13,8 @@ export type NotificationInput = {
     | "game_confirmed"
     | "game_cancelled"
     | "game_changed"
+    | "cohost_added"
+    | "host_handoff"
     | "spot_offered"
     | "offer_expired"
     | "last_call"

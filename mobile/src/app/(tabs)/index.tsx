@@ -8,7 +8,6 @@ import { useCountdown } from "@/lib/countdown";
 import { Faces } from "@/components/Avatar";
 import { CrewTile } from "@/components/CrewTile";
 import { GameCard, GameList } from "@/components/GameCard";
-import { SoccerBall } from "@/components/SoccerBall";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight, MapPin, Search } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
@@ -24,7 +23,7 @@ export default function HomeScreen() {
   const [nextBottom, setNextBottom] = useState(Infinity);
   // After you tap "You're in" to drop out, that game stays up top with "RSVP now" so you can undo.
   const [dropped, setDropped] = useState<NextUpView | null>(null);
-  // Where the first few "Also on your list" cards sit in the scroll content, so each can turn into a ball in the header.
+  // Where the first few "Also on your list" cards sit in the scroll content, so each can turn into a tile under the header.
   const [listAt, setListAt] = useState({ content: 0, contentHeight: 0, section: 0, list: 0 });
   const { height: screenHeight } = useWindowDimensions();
   const [cardAt, setCardAt] = useState<number[]>([]);
@@ -32,7 +31,7 @@ export default function HomeScreen() {
   const hasNext = !!(dropped ?? data?.next);
   const [barHeight, setBarHeight] = useState(0);
   const headerBottom = barHeight || insets.top + (hasNext ? 112 : 54);
-  const tops = cardAt.slice(0, MAX_BALLS).map((y) => listAt.content + listAt.section + listAt.list + y);
+  const tops = cardAt.slice(0, MAX_TILES).map((y) => listAt.content + listAt.section + listAt.list + y);
   // The page can only scroll so far (content ends with the tab bar's 120pt of room); late cards finish before that.
   const maxScroll = listAt.contentHeight ? listAt.content + listAt.contentHeight + 120 - screenHeight : Infinity;
   const motion = useCollapse(nextBottom, tops, headerBottom, maxScroll);
@@ -53,7 +52,13 @@ export default function HomeScreen() {
           </Animated.View>
         ) : null}
       </TopBar>
-      <BallRack games={alsoPlaying.slice(0, MAX_BALLS)} motion={motion} top={headerBottom} />
+      {RACK_STYLE === "stack" ? (
+        <CardStack games={alsoPlaying.slice(0, MAX_TILES)} motion={motion} top={headerBottom} />
+      ) : RACK_STYLE === "timeline" ? (
+        <Timeline games={alsoPlaying.slice(0, MAX_TILES)} motion={motion} top={headerBottom} />
+      ) : (
+        <TileRack games={alsoPlaying.slice(0, MAX_TILES)} motion={motion} top={headerBottom} />
+      )}
       <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={motion.onScroll}>
         <NightHero>
           <Body size={15} color="rgba(255,255,255,0.6)">
@@ -80,7 +85,7 @@ export default function HomeScreen() {
                       const y = e.nativeEvent.layout.y;
                       setCardAt((at) => (at[i] === y ? at : Object.assign([...at], { [i]: y })));
                     }}
-                    style={i < MAX_BALLS ? motion.cardStyle(i) : undefined}
+                    style={i < MAX_TILES ? motion.cardStyle(i) : undefined}
                   >
                     <GameCard game={g} showDay />
                   </Animated.View>
@@ -154,12 +159,12 @@ export default function HomeScreen() {
 function useCollapse(nextBottom: number, tops: number[], headerBottom: number, maxScroll: number) {
   const y = useRef(new Animated.Value(0)).current;
   const [pinned, setPinned] = useState(false);
-  const [ballsIn, setBallsIn] = useState(0);
-  const live = useRef({ pinned: false, ballsIn: 0, end: 0, marks: [] as number[] });
+  const [tilesIn, setTilesIn] = useState(0);
+  const live = useRef({ pinned: false, tilesIn: 0, end: 0, marks: [] as number[] });
   // The panel's bottom passes under the header (about 110pt tall with the pinned row) at `end`.
   const end = Number.isFinite(nextBottom) ? Math.max(nextBottom - 110, 60) : 1e6;
   const start = end - 150;
-  // Card i reaches the ball rack, in the fade under the header, at marks[i]; that's when it becomes a ball.
+  // Card i reaches the tile rack, in the fade under the header, at marks[i]; that's when it becomes a tile.
   const marks = tops.map((top, i) => Math.max(Math.min(top - headerBottom - RACK, maxScroll - 40 - (tops.length - 1 - i) * 24), 1));
   live.current.end = end;
   live.current.marks = marks;
@@ -174,7 +179,7 @@ function useCollapse(nextBottom: number, tops: number[], headerBottom: number, m
           const on = at > l.end - 40;
           if (on !== l.pinned) setPinned((l.pinned = on));
           const n = l.marks.filter((m) => at > m).length;
-          if (n !== l.ballsIn) setBallsIn((l.ballsIn = n));
+          if (n !== l.tilesIn) setTilesIn((l.tilesIn = n));
         },
       }),
     [y],
@@ -188,7 +193,7 @@ function useCollapse(nextBottom: number, tops: number[], headerBottom: number, m
     return {
       onScroll,
       pinned,
-      ballsIn,
+      tilesIn,
       pin: range(start + 40, end, [0, 1]),
       glass: range(0, 24, [0, 1]),
       pinnedStyle: { opacity: range(start + 40, end, [0, 1]), transform: [{ translateY: range(start, end, [18, 0]) }, { scale: range(start, end, [0.94, 1]) }] },
@@ -202,40 +207,67 @@ function useCollapse(nextBottom: number, tops: number[], headerBottom: number, m
         transform: [{ scale: range(mark(i) - 60, mark(i) + 6, [1, 0.55]) }],
         transformOrigin: "50% 0%",
       }),
-      // ...and pops up into the rack as a ball, with a little bounce. Scrolling back up drops it out again.
-      ballStyle: (i: number) => ({
-        opacity: range(mark(i) - 6, mark(i) + 8, [0, 1]),
+      // ...and rises into the rack as a tile, settling with a small overshoot. Scrolling back up drops it out again.
+      tileStyle: (i: number) => ({
+        opacity: range(mark(i) - 6, mark(i) + 10, [0, 1]),
         transform: [
-          { translateY: steps([mark(i) - 6, mark(i) + 14, mark(i) + 24, mark(i) + 32], [30, -6, 2, 0]) },
-          { scale: range(mark(i) - 6, mark(i) + 14, [0.3, 1]) },
+          { translateY: steps([mark(i) - 6, mark(i) + 16, mark(i) + 26, mark(i) + 34], [26, -4, 1, 0]) },
+          { scale: range(mark(i) - 6, mark(i) + 16, [0.6, 1]) },
         ],
       }),
-      // The ball (not its day) rolls into place.
-      ballSpin: (i: number) => ({ transform: [{ rotate: y.interpolate({ inputRange: [mark(i) - 6, mark(i) + 32], outputRange: ["-220deg", "0deg"], extrapolate: "clamp" }) }] }),
+      // For the stack and the timeline: fade in and rise into place, without the bounce.
+      rise: (i: number, from = 18) => ({
+        opacity: range(mark(i) - 6, mark(i) + 14, [0, 1]),
+        translateY: range(mark(i) - 6, mark(i) + 24, [from, 0]),
+        scale: range(mark(i) - 6, mark(i) + 24, [0.4, 1]),
+      }),
     };
     // `key` stands in for `marks`, which is a new array every render.
-  }, [y, onScroll, pinned, ballsIn, start, end, key]);
+  }, [y, onScroll, pinned, tilesIn, start, end, key]);
 }
 
 type Motion = ReturnType<typeof useCollapse>;
 
-/** Games you've scrolled past, lined up as balls in the fade under the header, with their day. Tap one to open it. */
-function BallRack({ games, motion, top }: { games: GameCardView[]; motion: Motion; top: number }) {
+/**
+ * Games you've scrolled past, lined up as little calendar tiles in the fade under the header: weekday, date and
+ * kickoff. Tap one to open it.
+ */
+function TileRack({ games, motion, top }: { games: GameCardView[]; motion: Motion; top: number }) {
   const { c } = useTheme();
   if (!games.length) return null;
   return (
-    <View pointerEvents="box-none" style={{ position: "absolute", top: top - 2, left: 20, zIndex: 11, flexDirection: "row", gap: 12 }}>
+    <View pointerEvents="box-none" style={{ position: "absolute", top: top - 4, left: 20, zIndex: 11, flexDirection: "row", gap: 8 }}>
       {games.map((g, i) => (
-        <Animated.View key={g.id} pointerEvents={i < motion.ballsIn ? "auto" : "none"} style={motion.ballStyle(i)}>
-          <Pressable accessibilityRole="link" accessibilityLabel={`${g.title}, ${g.when}`} onPress={() => router.push(`/g/${g.code}`)} style={{ alignItems: "center" }}>
-            <Animated.View style={[motion.ballSpin(i), { borderRadius: 14, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 0, height: 2 } }]}>
-              <SoccerBall size={28} />
-            </Animated.View>
-            <View style={{ marginTop: 3, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: c.night }}>
-              <Mono size={9} color="#FFFFFF">
-                {g.dayLabel.replace(/,.*/, "")}
-              </Mono>
-            </View>
+        <Animated.View key={g.id} pointerEvents={i < motion.tilesIn ? "auto" : "none"} style={motion.tileStyle(i)}>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`${g.title}, ${g.when}`}
+            onPress={() => router.push(`/g/${g.code}`)}
+            style={{
+              width: 48,
+              paddingTop: 5,
+              paddingBottom: 6,
+              borderRadius: 12,
+              alignItems: "center",
+              backgroundColor: c.night,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.14)",
+              shadowColor: "#000",
+              shadowOpacity: 0.22,
+              shadowRadius: 8,
+              shadowOffset: { width: 0, height: 4 },
+            }}
+          >
+            <Mono size={8.5} color={c.lime}>
+              {shortDay(g)}
+            </Mono>
+            <Disp size={19} color="#FFFFFF" style={{ marginTop: 1 }}>
+              {Number(g.dayKey.slice(8))}
+            </Disp>
+            <Mono size={8} color="rgba(255,255,255,0.6)">
+              {g.time}
+              {g.ampm.slice(0, 1).toLowerCase()}
+            </Mono>
           </Pressable>
         </Animated.View>
       ))}
@@ -243,9 +275,123 @@ function BallRack({ games, motion, top }: { games: GameCardView[]; motion: Motio
   );
 }
 
-const MAX_BALLS = 4;
-/** Height of the ball rack under the header. */
-const RACK = 46;
+/** Mock-up switch while we pick a look: "tiles", "stack" or "timeline". */
+const RACK_STYLE = process.env.EXPO_PUBLIC_HOME_RACK ?? "tiles";
+
+/** "Tue", "Today", "Tmrw": short enough for a tile. */
+const shortDay = (g: GameCardView) => {
+  const d = g.dayLabel.replace(/,.*/, "");
+  return d === "Tomorrow" ? "Tmrw" : d === "Today" || d === "Tonight" ? d : d.slice(0, 3);
+};
+const tag = (g: GameCardView) => `${shortDay(g)} ${g.time}${g.ampm.slice(0, 1).toLowerCase()}`;
+
+/**
+ * Cards tuck under the header like a wallet: the newest sits in front with its day, time and name, the earlier ones
+ * peek out behind it. Tap the stack to fan it open, tap a card to open the game.
+ */
+function CardStack({ games, motion, top }: { games: GameCardView[]; motion: Motion; top: number }) {
+  const { c } = useTheme();
+  const [open, setOpen] = useState(false);
+  const fan = useRef(new Animated.Value(0)).current;
+  const toggle = () => {
+    Animated.spring(fan, { toValue: open ? 0 : 1, useNativeDriver: true, friction: 8 }).start();
+    setOpen(!open);
+  };
+  if (!games.length) return null;
+  const n = Math.max(motion.tilesIn, 1);
+  return (
+    <View pointerEvents="box-none" style={{ position: "absolute", top: top - 6, left: 16, right: 16, zIndex: 11 }}>
+      {games.map((g, i) => {
+        const r = motion.rise(i, 24);
+        // Behind the front card each one peeks out 5pt lower and a touch narrower; fanned open they spread out in order.
+        const depth = n - 1 - i;
+        const stacked = Math.max(depth, 0) * 5;
+        const fanned = i * 40;
+        return (
+          <Animated.View
+            key={g.id}
+            pointerEvents={i < motion.tilesIn ? "auto" : "none"}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              zIndex: i,
+              opacity: r.opacity,
+              transform: [
+                { translateY: Animated.add(r.translateY, fan.interpolate({ inputRange: [0, 1], outputRange: [stacked, fanned] })) },
+                { scaleX: fan.interpolate({ inputRange: [0, 1], outputRange: [1 - Math.max(depth, 0) * 0.04, 1] }) },
+              ],
+            }}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={open ? `${g.title}, ${g.when}` : "Show the games you've scrolled past"}
+              onPress={() => (open ? router.push(`/g/${g.code}`) : toggle())}
+              style={{
+                height: 36,
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                backgroundColor: c.surface,
+                borderWidth: 1,
+                borderColor: c.line,
+                shadowColor: "#000",
+                shadowOpacity: 0.12,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+              }}
+            >
+              <Mono size={10.5} color={c.pitch}>
+                {tag(g)}
+              </Mono>
+              <Body size={13.5} weight="semibold" numberOfLines={1} style={{ flex: 1 }}>
+                {g.title}
+              </Body>
+              {!open && i === n - 1 && n > 1 ? (
+                <Mono size={10} color={c.muted}>
+                  +{n - 1}
+                </Mono>
+              ) : null}
+            </Pressable>
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+}
+
+/** A thin schedule strip under the header: a lime dot and a short label for each game you've scrolled past. */
+function Timeline({ games, motion, top }: { games: GameCardView[]; motion: Motion; top: number }) {
+  const { c } = useTheme();
+  if (!games.length) return null;
+  const line = motion.rise(0, 0);
+  return (
+    <View pointerEvents="box-none" style={{ position: "absolute", top: top + 10, left: 24, right: 24, zIndex: 11 }}>
+      <Animated.View style={{ position: "absolute", top: 5, left: 0, right: 0, height: 1.5, borderRadius: 1, backgroundColor: c.lime, opacity: Animated.multiply(line.opacity, 0.55) }} />
+      <View pointerEvents="box-none" style={{ flexDirection: "row", gap: 22 }}>
+        {games.map((g, i) => {
+          const r = motion.rise(i, 0);
+          return (
+            <Animated.View key={g.id} pointerEvents={i < motion.tilesIn ? "auto" : "none"} style={{ opacity: r.opacity, alignItems: "flex-start" }}>
+              <Pressable accessibilityRole="link" accessibilityLabel={`${g.title}, ${g.when}`} onPress={() => router.push(`/g/${g.code}`)} hitSlop={10}>
+                <Animated.View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: c.lime, borderWidth: 2.5, borderColor: c.night, transform: [{ scale: r.scale }] }} />
+                <Mono size={9.5} color={c.ink} style={{ marginTop: 6 }}>
+                  {tag(g)}
+                </Mono>
+              </Pressable>
+            </Animated.View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const MAX_TILES = 4;
+/** Height of the tile rack under the header. */
+const RACK = 50;
 
 type RsvpHandlers = { onDropped: (game: NextUpView) => void; onRejoined: () => void };
 

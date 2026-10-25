@@ -5,20 +5,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/api/client";
 import { keys, useMe } from "@/api/hooks";
-import type { SportKey } from "@/api/types";
 import { Chips, DateTimeField, toDateStr, toTimeStr } from "@/components/Choice";
 import { RulesFields, defaultRules, rulesBody, type RulesDraft } from "@/components/RulesFields";
 import { Body, Button, Disp, Field, Input, Mono, Page, Segmented, SwitchRow } from "@/components/ui";
 import { ChevronDown } from "@/components/icons";
 import { useTheme } from "@/theme";
 
-const SPORTS: { value: SportKey; label: string }[] = [
-  { value: "soccer", label: "Soccer" },
-  { value: "basketball", label: "Basketball" },
-  { value: "volleyball", label: "Volleyball" },
-  { value: "ultimate", label: "Ultimate" },
-  { value: "other", label: "Other" },
-];
 const LENGTHS = [
   { value: 60, label: "1 hr" },
   { value: 90, label: "1.5 hr" },
@@ -96,7 +88,7 @@ function OnceForm() {
   const { data: me } = useMe();
   const tomorrow = new Date(Date.now() + 86_400_000);
   tomorrow.setHours(19, 0, 0, 0);
-  const [f, setF] = useState({ title: "", sport: "soccer" as SportKey, when: tomorrow, durationMinutes: 90, locationName: "", locationAddress: "", notes: "", autoCancel: true, decisionHoursBefore: 4, groupId: "", visibility: "public" as "public" | "private", hostPlays: true });
+  const [f, setF] = useState({ title: "", when: tomorrow, durationMinutes: 90, locationName: "", locationAddress: "", notes: "", autoCancel: true, decisionHoursBefore: 4, groupId: "", visibility: "public" as "public" | "private", hostPlays: true });
   const [rules, setRules] = useState<RulesDraft>(defaultRules);
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
@@ -107,7 +99,7 @@ function OnceForm() {
       const { code } = await api<{ code: string }>("/api/v1/games", {
         body: {
           title: f.title,
-          sport: f.sport,
+          sport: "soccer",
           date: toDateStr(f.when),
           time: toTimeStr(f.when),
           durationMinutes: f.durationMinutes,
@@ -137,9 +129,6 @@ function OnceForm() {
       <Section title="The game">
         <Field label="Name">
           <Input value={f.title} onChangeText={(title) => set({ title })} placeholder="Thursday Night 5v5" maxLength={60} />
-        </Field>
-        <Field label="Sport">
-          <Chips scroll options={SPORTS} value={f.sport} onChange={(sport) => set({ sport })} />
         </Field>
         <View style={{ flexDirection: "row", gap: 14 }}>
           <View style={{ flex: 1 }}>
@@ -210,7 +199,7 @@ function CrewForm() {
   const qc = useQueryClient();
   const seven = new Date();
   seven.setHours(19, 0, 0, 0);
-  const [f, setF] = useState({ name: "", sport: "soccer" as SportKey, locationName: "", locationAddress: "", area: "", description: "", visibility: "public" as "public" | "private", weekday: 2, time: seven, opensHoursBefore: 48, decisionHoursBefore: 4, durationMinutes: 90 });
+  const [f, setF] = useState({ name: "", locationName: "", locationAddress: "", area: "", description: "", visibility: "public" as "public" | "private", weekday: 2, time: seven, opensHoursBefore: 48, decisionHoursBefore: 4, durationMinutes: 90 });
   const [rules, setRules] = useState<RulesDraft>(defaultRules);
   const [busy, setBusy] = useState(false);
   const set = (p: Partial<typeof f>) => setF((x) => ({ ...x, ...p }));
@@ -221,7 +210,7 @@ function CrewForm() {
       const { slug } = await api<{ slug: string }>("/api/v1/crews", {
         body: {
           name: f.name,
-          sport: f.sport,
+          sport: "soccer",
           description: f.description || null,
           locationName: f.locationName,
           locationAddress: f.locationAddress || null,
@@ -250,9 +239,6 @@ function CrewForm() {
       <Section title="The crew">
         <Field label="Name" hint="What everyone already calls it.">
           <Input value={f.name} onChangeText={(name) => set({ name })} placeholder="Tuesday Night 7v7" maxLength={60} />
-        </Field>
-        <Field label="Sport">
-          <Chips scroll options={SPORTS} value={f.sport} onChange={(sport) => set({ sport })} />
         </Field>
         <Field label="Home field or court">
           <Input value={f.locationName} onChangeText={(locationName) => set({ locationName })} placeholder="Crocker Amazon, Field 2" />

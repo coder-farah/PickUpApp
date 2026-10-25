@@ -3,11 +3,13 @@ import { Alert, Animated, ScrollView, View, type NativeScrollEvent, type NativeS
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useGameAction, useHome } from "@/api/hooks";
-import type { NextUpView } from "@/api/types";
+import type { GameCardView, NextUpView } from "@/api/types";
 import { useCountdown } from "@/lib/countdown";
 import { Faces } from "@/components/Avatar";
 import { CrewTile } from "@/components/CrewTile";
-import { GameList } from "@/components/GameCard";
+import { GameCard, GameList } from "@/components/GameCard";
+import { SoccerBall } from "@/components/SoccerBall";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight, MapPin, Search } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
 import { TopBar } from "@/components/TopBar";
@@ -22,7 +24,14 @@ export default function HomeScreen() {
   const [nextBottom, setNextBottom] = useState(Infinity);
   // After you tap "You're in" to drop out, that game stays up top with "RSVP now" so you can undo.
   const [dropped, setDropped] = useState<NextUpView | null>(null);
-  const motion = useCollapse(nextBottom);
+  // Where the first few "Also on your list" cards sit in the scroll content, so each can turn into a ball in the header.
+  const [listAt, setListAt] = useState({ content: 0, section: 0, list: 0 });
+  const [cardAt, setCardAt] = useState<number[]>([]);
+  const insets = useSafeAreaInsets();
+  const hasNext = !!(dropped ?? data?.next);
+  const headerBottom = insets.top + (hasNext ? 112 : 54);
+  const tops = cardAt.slice(0, MAX_BALLS).map((y) => listAt.content + listAt.section + listAt.list + y);
+  const motion = useCollapse(nextBottom, tops, headerBottom);
   if (isLoading) return <Loading />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load your games."} onRetry={() => void refetch()} />;
   const next = dropped ?? data.next;
@@ -33,7 +42,7 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night unread={data.unread} progress={next ? motion.pin : motion.glass}>
+      <TopBar night unread={data.unread} progress={next ? motion.pin : motion.glass} accessory={<BallRack games={alsoPlaying.slice(0, MAX_BALLS)} motion={motion} />}>
         {next ? (
           <Animated.View pointerEvents={motion.pinned ? "auto" : "none"} style={motion.pinnedStyle}>
             <PinnedNext game={next} {...rsvp} />
@@ -41,7 +50,13 @@ export default function HomeScreen() {
         ) : null}
       </TopBar>
       <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={motion.onScroll}>
-        <NightHero>
+        <NightHero
+          decor={
+            <Animated.View pointerEvents="none" style={{ position: "absolute", right: 38, top: 128, transform: [{ rotate: motion.spin }] }}>
+              <SoccerBall size={44} />
+            </Animated.View>
+          }
+        >
           <Body size={15} color="rgba(255,255,255,0.6)">
             {data.greeting}
           </Body>
@@ -54,11 +69,24 @@ export default function HomeScreen() {
           )}
         </NightHero>
 
-        <View style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
+        <View onLayout={(e) => setListAt((a) => ({ ...a, content: e.nativeEvent.layout.y }))} style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
           {alsoPlaying.length > 0 && (
-            <View>
+            <View onLayout={(e) => setListAt((a) => ({ ...a, section: e.nativeEvent.layout.y }))}>
               <SectionTitle>Also on your list</SectionTitle>
-              <GameList games={alsoPlaying} showDay />
+              <View onLayout={(e) => setListAt((a) => ({ ...a, list: e.nativeEvent.layout.y }))} style={{ gap: 10 }}>
+                {alsoPlaying.map((g, i) => (
+                  <Animated.View
+                    key={g.id}
+                    onLayout={(e) => {
+                      const y = e.nativeEvent.layout.y;
+                      setCardAt((at) => (at[i] === y ? at : Object.assign([...at], { [i]: y })));
+                    }}
+                    style={i < MAX_BALLS ? motion.cardStyle(i) : undefined}
+                  >
+                    <GameCard game={g} showDay />
+                  </Animated.View>
+                ))}
+              </View>
             </View>
           )}
 
@@ -124,43 +152,98 @@ export default function HomeScreen() {
  * nears the header it shrinks, drifts and fades, while the header's night glass and the compact pinned row fade and
  * settle in over the same stretch of scroll. Runs on the native driver.
  */
-function useCollapse(nextBottom: number) {
+function useCollapse(nextBottom: number, tops: number[], headerBottom: number) {
   const y = useRef(new Animated.Value(0)).current;
   const [pinned, setPinned] = useState(false);
-  const pinnedRef = useRef(false);
+  const [ballsIn, setBallsIn] = useState(0);
+  const live = useRef({ pinned: false, ballsIn: 0, end: 0, marks: [] as number[] });
   // The panel's bottom passes under the header (about 110pt tall with the pinned row) at `end`.
   const end = Number.isFinite(nextBottom) ? Math.max(nextBottom - 110, 60) : 1e6;
   const start = end - 150;
-  const endRef = useRef(end);
-  endRef.current = end;
+  // Card i reaches the bottom of the header at marks[i]; that's when it becomes a ball.
+  const marks = tops.map((top) => Math.max(top - headerBottom, 1));
+  live.current.end = end;
+  live.current.marks = marks;
 
   const onScroll = useMemo(
     () =>
       Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
         useNativeDriver: true,
         listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-          const on = e.nativeEvent.contentOffset.y > endRef.current - 40;
-          if (on !== pinnedRef.current) setPinned((pinnedRef.current = on));
+          const at = e.nativeEvent.contentOffset.y;
+          const l = live.current;
+          const on = at > l.end - 40;
+          if (on !== l.pinned) setPinned((l.pinned = on));
+          const n = l.marks.filter((m) => at > m).length;
+          if (n !== l.ballsIn) setBallsIn((l.ballsIn = n));
         },
       }),
     [y],
   );
 
+  const key = marks.join(",");
   return useMemo(() => {
     const range = (from: number, to: number, out: number[]) => y.interpolate({ inputRange: [from, to], outputRange: out, extrapolate: "clamp" });
+    const steps = (input: number[], out: number[]) => y.interpolate({ inputRange: input, outputRange: out, extrapolate: "clamp" });
+    const mark = (i: number) => marks[i] ?? 1e6;
     return {
       onScroll,
       pinned,
+      ballsIn,
       pin: range(start + 40, end, [0, 1]),
       glass: range(0, 24, [0, 1]),
+      // The hero ball rolls as the page moves.
+      spin: y.interpolate({ inputRange: [0, 300], outputRange: ["0deg", "-180deg"] }),
       pinnedStyle: { opacity: range(start + 40, end, [0, 1]), transform: [{ translateY: range(start, end, [18, 0]) }, { scale: range(start, end, [0.94, 1]) }] },
       panelStyle: {
         opacity: range(start - 40, end - 30, [1, 0]),
         transform: [{ translateY: range(start - 120, end, [0, 36]) }, { scale: range(start - 120, end, [1, 0.9]) }],
       },
+      // A card shrinks toward the header as it slides under it...
+      cardStyle: (i: number) => ({
+        opacity: range(mark(i) - 60, mark(i) + 6, [1, 0]),
+        transform: [{ scale: range(mark(i) - 60, mark(i) + 6, [1, 0.55]) }],
+        transformOrigin: "50% 0%",
+      }),
+      // ...and pops up into the rack as a ball, with a little bounce. Scrolling back up drops it out again.
+      ballStyle: (i: number) => ({
+        opacity: range(mark(i) - 6, mark(i) + 8, [0, 1]),
+        transform: [
+          { translateY: steps([mark(i) - 6, mark(i) + 14, mark(i) + 24, mark(i) + 32], [30, -6, 2, 0]) },
+          { scale: range(mark(i) - 6, mark(i) + 14, [0.3, 1]) },
+        ],
+      }),
+      // The ball (not its day) rolls into place.
+      ballSpin: (i: number) => ({ transform: [{ rotate: y.interpolate({ inputRange: [mark(i) - 6, mark(i) + 32], outputRange: ["-220deg", "0deg"], extrapolate: "clamp" }) }] }),
     };
-  }, [y, onScroll, pinned, start, end]);
+    // `key` stands in for `marks`, which is a new array every render.
+  }, [y, onScroll, pinned, ballsIn, start, end, key]);
 }
+
+type Motion = ReturnType<typeof useCollapse>;
+
+/** Games you've scrolled past, lined up as balls in the header with their day. Tap one to open it. */
+function BallRack({ games, motion }: { games: GameCardView[]; motion: Motion }) {
+  if (!games.length) return null;
+  return (
+    <View pointerEvents="box-none" style={{ flexDirection: "row", gap: 6, marginRight: 4 }}>
+      {games.map((g, i) => (
+        <Animated.View key={g.id} pointerEvents={i < motion.ballsIn ? "auto" : "none"} style={motion.ballStyle(i)}>
+          <Pressable accessibilityRole="link" accessibilityLabel={`${g.title}, ${g.when}`} onPress={() => router.push(`/g/${g.code}`)} style={{ alignItems: "center", width: 30 }}>
+            <Animated.View style={motion.ballSpin(i)}>
+              <SoccerBall size={22} />
+            </Animated.View>
+            <Mono size={8.5} color="rgba(255,255,255,0.75)" style={{ marginTop: 2 }}>
+              {g.dayLabel.replace(/,.*/, "")}
+            </Mono>
+          </Pressable>
+        </Animated.View>
+      ))}
+    </View>
+  );
+}
+
+const MAX_BALLS = 4;
 
 type RsvpHandlers = { onDropped: (game: NextUpView) => void; onRejoined: () => void };
 

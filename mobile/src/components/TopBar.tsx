@@ -34,6 +34,7 @@ export function TopBar({
   onShare,
   glass = true,
   progress,
+  accessory,
   children,
 }: {
   night?: boolean;
@@ -43,6 +44,8 @@ export function TopBar({
   glass?: boolean;
   /** Drives the glass from scroll instead (0 clear, 1 glass), so it can fade in step with something else. */
   progress?: Animated.AnimatedInterpolation<number>;
+  /** Sits in the top row, just before the share and inbox buttons. */
+  accessory?: ReactNode;
   children?: ReactNode;
 }) {
   const { c } = useTheme();
@@ -84,6 +87,7 @@ export function TopBar({
         </View>
       )}
       <View style={{ flex: 1 }} />
+      {accessory}
       {onShare && (
         <Pressable accessibilityLabel="Share" onPress={onShare} style={chip}>
           <ShareIcon size={18} color={fg} />

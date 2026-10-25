@@ -6,7 +6,8 @@ import { useTheme } from "@/theme";
 import { PitchMotif } from "./Logo";
 
 /** A pitch-night panel that fades into the page, like the website's hero. Content after it can pull up over the fade. */
-export function NightHero({ children, fade = 110, style }: { children: ReactNode; fade?: number; style?: StyleProp<ViewStyle> }) {
+/** `decor` is drawn over the pitch lines, positioned against the hero itself (the centre spot is 60pt in from the right, 150pt down). */
+export function NightHero({ children, fade = 110, style, decor }: { children: ReactNode; fade?: number; style?: StyleProp<ViewStyle>; decor?: ReactNode }) {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   return (
@@ -26,6 +27,7 @@ export function NightHero({ children, fade = 110, style }: { children: ReactNode
         </Svg>
       </View>
       <PitchMotif style={{ top: -110, right: -200 }} />
+      {decor}
       <View style={{ paddingTop: insets.top + 64, paddingHorizontal: 20, paddingBottom: fade + 8 }}>{children}</View>
     </View>
   );

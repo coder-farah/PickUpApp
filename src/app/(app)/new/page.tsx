@@ -8,7 +8,6 @@ import { createGameAction, createGroupAction } from "@/app/actions";
 import { ActionForm, SubmitButton } from "@/components/client";
 import { Field, Input, PageHeader, Select, Switch, Textarea } from "@/components/ui";
 import { RulesFields, WeeklyFields } from "@/components/RulesFields";
-import { SPORTS } from "@/lib/sports";
 import { DEFAULT_TZ, inZone } from "@/lib/time";
 import { cn } from "@/lib/cn";
 
@@ -65,30 +64,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function SportSelect({ id }: { id: string }) {
-  return (
-    <Select id={id} name="sport" defaultValue="soccer">
-      {SPORTS.map((s) => (
-        <option key={s.value} value={s.value}>
-          {s.label}
-        </option>
-      ))}
-    </Select>
-  );
-}
-
 function GroupForm() {
   return (
     <ActionForm action={createGroupAction} className="gap-5">
       <Section title="The crew">
-        <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-          <Field label="Name" htmlFor="name" hint="What everyone already calls it.">
-            <Input id="name" name="name" placeholder="Tuesday Night 7v7" required maxLength={60} />
-          </Field>
-          <Field label="Sport" htmlFor="sport">
-            <SportSelect id="sport" />
-          </Field>
-        </div>
+        <Field label="Name" htmlFor="name" hint="What everyone already calls it.">
+          <Input id="name" name="name" placeholder="Tuesday Night 7v7" required maxLength={60} />
+        </Field>
+        {/* Pitchin is soccer only. */}
+        <input type="hidden" name="sport" value="soccer" />
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Home field or court" htmlFor="locationName">
             <Input id="locationName" name="locationName" placeholder="Crocker Amazon, Field 2" required />
@@ -134,14 +118,11 @@ function OnceForm({ groups, preselect }: { groups: { id: string; name: string }[
   return (
     <ActionForm action={createGameAction} className="gap-5">
       <Section title="The game">
-        <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
-          <Field label="Name" htmlFor="title">
-            <Input id="title" name="title" placeholder="Thursday Night 5v5" required maxLength={60} />
-          </Field>
-          <Field label="Sport" htmlFor="sport">
-            <SportSelect id="sport" />
-          </Field>
-        </div>
+        <Field label="Name" htmlFor="title">
+          <Input id="title" name="title" placeholder="Thursday Night 5v5" required maxLength={60} />
+        </Field>
+        {/* Pitchin is soccer only. */}
+        <input type="hidden" name="sport" value="soccer" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Field label="Date" htmlFor="date">
             <Input id="date" name="date" type="date" defaultValue={tomorrow} required />

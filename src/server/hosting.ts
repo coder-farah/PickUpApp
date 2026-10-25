@@ -1,11 +1,11 @@
 import "server-only";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, t } from "./db";
 import * as engine from "./engine";
 import { GameError } from "./engine";
 import { locateField } from "./geocode";
-import { queueNotifications } from "./notify";
+import { gameUrl, queueNotifications } from "./notify";
 import { gameTimesFor, materializeSchedule } from "./scheduler";
 import { DEFAULT_TZ, fmtWhen, parseLocalDateTime } from "@/lib/time";
 import { shortCode, slugify } from "@/lib/ids";
@@ -42,6 +42,18 @@ export const gameInput = z.object({
   hostPlays: z.boolean().default(true),
 });
 export type GameInput = z.input<typeof gameInput>;
+
+export const gameEditInput = z.object({
+  title: z.string().trim(),
+  date: z.string(),
+  time: z.string(),
+  durationMinutes: z.number().int().min(30).max(360),
+  locationName: z.string().trim(),
+  locationAddress: z.string().trim().nullish(),
+  notes: z.string().trim().max(1000).nullish(),
+  rules: rulesSchema,
+});
+export type GameEditInput = z.input<typeof gameEditInput>;
 
 export const crewInput = z.object({
   name: z.string().trim(),
@@ -200,4 +212,75 @@ export async function createCrew(user: SessionUser, raw: CrewInput) {
   });
   await materializeSchedule(created.s, created.g, new Date());
   return { slug };
+}
+
+/**
+ * The host (or a crew organizer) changes a game that hasn't started. Moving the time keeps the RSVP deadlines the same
+ * distance from kickoff. A new time or place alerts everyone who's in, holding an offer or on the waitlist.
+ */
+export async function editGame(user: SessionUser, code: string, raw: GameEditInput, now = new Date()) {
+  const input = gameEditInput.parse(raw);
+  const [g] = await db.select().from(t.games).where(eq(t.games.code, code));
+  if (!g) throw new GameError("This game doesn't exist.");
+  if (!(await engine.isManager(db, g, user.id))) throw new GameError("Only the host can edit this game.");
+  if (g.status === "cancelled" || g.status === "completed" || now >= g.startsAt) throw new GameError("This game can't be changed anymore.");
+  if (input.title.length < 3) throw new GameError("Give the game a name, like “Thursday Night 5v5”.");
+  if (!input.locationName) throw new GameError("Where are you playing?");
+  const startsAt = parseLocalDateTime(input.date, input.time, g.timezone);
+  if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() < now.getTime() + 15 * 60_000) {
+    throw new GameError("Pick a start time in the future.");
+  }
+
+  const address = input.locationAddress || null;
+  const timeChanged = startsAt.getTime() !== g.startsAt.getTime();
+  const placeChanged = input.locationName !== g.locationName || address !== g.locationAddress;
+  const spot = placeChanged ? await locateField(input.locationName, address) : { lat: g.lat, lng: g.lng };
+  const shift = (d: Date) => new Date(startsAt.getTime() - (g.startsAt.getTime() - d.getTime()));
+  const { capacity, ...rules } = input.rules;
+
+  await db.transaction(async (tx) => {
+    const locked = await engine.lockGame(tx, g.id);
+    await tx
+      .update(t.games)
+      .set({
+        title: input.title.slice(0, 60),
+        notes: input.notes || null,
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + input.durationMinutes * 60_000),
+        lastCallAt: shift(locked.lastCallAt),
+        decisionAt: locked.decisionAt && !locked.decidedAt ? shift(locked.decisionAt) : locked.decisionAt,
+        lastCallNotifiedAt: timeChanged ? null : locked.lastCallNotifiedAt,
+        locationName: input.locationName,
+        locationAddress: address,
+        lat: spot?.lat ?? null,
+        lng: spot?.lng ?? null,
+        ...rules,
+      })
+      .where(eq(t.games.id, g.id));
+    await engine.syncThreshold(tx, g.id, now);
+
+    if (timeChanged || placeChanged) {
+      const people = await tx
+        .selectDistinct({ userId: t.spots.userId })
+        .from(t.spots)
+        .where(and(eq(t.spots.gameId, g.id), inArray(t.spots.status, ["in", "offered", "waitlist"])));
+      const what = timeChanged && placeChanged ? "New time and place" : timeChanged ? "New time" : "New place";
+      await queueNotifications(
+        tx,
+        people
+          .filter((p) => p.userId !== user.id)
+          .map((p) => ({
+            userId: p.userId,
+            kind: "game_changed" as const,
+            title: `${what}: ${input.title.slice(0, 60)}`,
+            body: `Now ${fmtWhen(startsAt, g.timezone)} at ${input.locationName}.`,
+            gameId: g.id,
+            url: gameUrl(code),
+            sms: true,
+          })),
+      );
+    }
+  });
+  if (capacity !== g.capacity) await engine.setCapacity(g.id, user.id, capacity, now);
+  return { code, notified: timeChanged || placeChanged };
 }

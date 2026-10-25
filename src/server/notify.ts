@@ -12,6 +12,7 @@ export type NotificationInput = {
     | "game_at_risk"
     | "game_confirmed"
     | "game_cancelled"
+    | "game_changed"
     | "spot_offered"
     | "offer_expired"
     | "last_call"

@@ -78,6 +78,7 @@ function Navigator() {
         <Stack.Protected guard={signedIn && onboarded}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="g/[code]" />
+          <Stack.Screen name="edit/[code]" />
           <Stack.Screen name="groups/[slug]" />
           <Stack.Screen name="join/[invite]" />
           <Stack.Screen name="inbox" />

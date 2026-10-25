@@ -66,6 +66,8 @@ export type GameDetailView = {
   game: GameCardView & {
     status: "scheduled" | "open" | "on" | "cancelled" | "completed";
     notes: string | null;
+    /** Minutes from kickoff to the end */
+    durationMinutes: number;
     minPlayers: number;
     claimMinutes: number;
     guestsAllowed: boolean;

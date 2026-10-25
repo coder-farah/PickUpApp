@@ -1,6 +1,8 @@
-import { ScrollView, View } from "react-native";
+import { useState } from "react";
+import { Alert, ScrollView, View } from "react-native";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { useHome } from "@/api/hooks";
+import { useGameAction, useHome } from "@/api/hooks";
 import type { NextUpView } from "@/api/types";
 import { useCountdown } from "@/lib/countdown";
 import { Faces } from "@/components/Avatar";
@@ -8,7 +10,7 @@ import { CrewTile } from "@/components/CrewTile";
 import { GameList } from "@/components/GameCard";
 import { ChevronRight, MapPin, Search } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
-import { TopBar } from "@/components/TopBar";
+import { TopBar, useScrolled } from "@/components/TopBar";
 import { Body, Button, Disp, EmptyState, ErrorView, Loading, Mono, Page, SectionTitle } from "@/components/ui";
 import { useTheme } from "@/theme";
 import { Pressable } from "react-native";
@@ -16,25 +18,43 @@ import { Pressable } from "react-native";
 export default function HomeScreen() {
   const { c } = useTheme();
   const { data, isLoading, error, refetch, isRefetching } = useHome();
+  const { y, scrolled, onScroll } = useScrolled();
+  // Once the big next-game panel has scrolled under the header, a compact copy stays pinned in the header.
+  const [nextBottom, setNextBottom] = useState(Infinity);
+  // After you tap "You're in" to drop out, that game stays up top with "RSVP now" so you can undo.
+  const [dropped, setDropped] = useState<NextUpView | null>(null);
   if (isLoading) return <Loading />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load your games."} onRetry={() => void refetch()} />;
+  const next = dropped ?? data.next;
+  // While the dropped game holds the top spot, the game that would have replaced it stays in the list below.
+  const alsoPlaying = dropped && data.next && data.next.id !== dropped.id ? [data.next, ...data.alsoPlaying] : data.alsoPlaying;
+  const openNear = data.openNear.filter((g) => g.id !== dropped?.id);
+  const rsvp = { onDropped: setDropped, onRejoined: () => void refetch().then(() => setDropped(null)) };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night unread={data.unread} />
-      <Page refreshing={isRefetching} onRefresh={() => void refetch()}>
+      <TopBar night unread={data.unread} glass={scrolled}>
+        {next && y > nextBottom - 120 ? <PinnedNext game={next} {...rsvp} /> : null}
+      </TopBar>
+      <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={onScroll}>
         <NightHero>
           <Body size={15} color="rgba(255,255,255,0.6)">
             {data.greeting}
           </Body>
-          {data.next ? <NextUp game={data.next} /> : <NothingNext />}
+          {next ? (
+            <View onLayout={(e) => setNextBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
+              <NextUp game={next} {...rsvp} />
+            </View>
+          ) : (
+            <NothingNext />
+          )}
         </NightHero>
 
         <View style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
-          {data.alsoPlaying.length > 0 && (
+          {alsoPlaying.length > 0 && (
             <View>
               <SectionTitle>Also on your list</SectionTitle>
-              <GameList games={data.alsoPlaying} showDay />
+              <GameList games={alsoPlaying} showDay />
             </View>
           )}
 
@@ -51,8 +71,8 @@ export default function HomeScreen() {
             >
               Open near you
             </SectionTitle>
-            {data.openNear.length ? (
-              <GameList games={data.openNear} showDay />
+            {openNear.length ? (
+              <GameList games={openNear} showDay />
             ) : (
               <EmptyState icon={<Search size={20} color={c.muted} />} title="Nothing open nearby" action={<Button title="Explore a wider area" onPress={() => router.push("/explore")} />}>
                 No public games in the next week within {data.area.miles} miles of {data.area.label}.
@@ -95,7 +115,59 @@ export default function HomeScreen() {
   );
 }
 
-function NextUp({ game }: { game: NextUpView }) {
+type RsvpHandlers = { onDropped: (game: NextUpView) => void; onRejoined: () => void };
+
+/**
+ * "You're in" doubles as the switch: one tap drops you (no confirm, by design), and the pill turns into "RSVP now"
+ * so the same tap gets you back in. Only shown for games you're in or just dropped.
+ */
+function RsvpPill({ game, onDropped, onRejoined, size = "lg" }: RsvpHandlers & { game: NextUpView; size?: "lg" | "sm" }) {
+  const { c } = useTheme();
+  const act = useGameAction(game.code);
+  const inGame = game.my?.status === "in";
+  const toggle = async () => {
+    try {
+      if (inGame) {
+        await act.mutateAsync({ action: "leave" });
+        onDropped({ ...game, my: null, note: "You're out. Changed your mind? Tap RSVP now." });
+      } else {
+        await act.mutateAsync({ action: "join" });
+        onRejoined();
+      }
+      void Haptics.selectionAsync().catch(() => undefined);
+    } catch (err) {
+      Alert.alert("Couldn't do that", (err as Error).message);
+    }
+  };
+  const lg = size === "lg";
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={inGame ? "You're in. Tap to drop out." : "RSVP now"}
+      disabled={act.isPending}
+      onPress={() => void toggle()}
+      style={{
+        height: lg ? 44 : 30,
+        paddingHorizontal: lg ? 20 : 12,
+        borderRadius: lg ? 22 : 15,
+        backgroundColor: inGame ? c.lime : "transparent",
+        borderWidth: inGame ? 0 : 1.5,
+        borderColor: c.lime,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        opacity: act.isPending ? 0.6 : 1,
+      }}
+    >
+      {inGame && lg && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.limeInk }} />}
+      <Body size={lg ? 16 : 12.5} weight="semibold" color={inGame ? c.limeInk : c.lime}>
+        {inGame ? "You're in" : "RSVP now"}
+      </Body>
+    </Pressable>
+  );
+}
+
+function NextUp({ game, ...rsvp }: RsvpHandlers & { game: NextUpView }) {
   const { c } = useTheme();
   const left = useCountdown(game.my?.status === "offered" ? game.offerExpiresAt : null);
   const [count, of] = game.going.split("/");
@@ -134,14 +206,7 @@ function NextUp({ game }: { game: NextUpView }) {
         {game.note}
       </Body>
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 22 }}>
-        {game.my?.status === "in" && (
-          <View style={{ height: 44, paddingHorizontal: 20, borderRadius: 22, backgroundColor: c.lime, flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.limeInk }} />
-            <Body weight="semibold" color={c.limeInk}>
-              You&apos;re in
-            </Body>
-          </View>
-        )}
+        {(game.my?.status === "in" || !game.my) && <RsvpPill game={game} {...rsvp} />}
         {game.my?.status === "offered" && <Button title={left ? `Claim spot · ${left}` : "Claim spot"} variant="lime" onPress={() => router.push(`/g/${game.code}`)} />}
         {game.my?.status === "waitlist" && game.position ? (
           <View style={{ height: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center" }}>
@@ -157,6 +222,55 @@ function NextUp({ game }: { game: NextUpView }) {
           <ChevronRight size={16} color="rgba(255,255,255,0.8)" />
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+/** The next game, shrunk to one row in the header once its panel scrolls away. */
+function PinnedNext({ game, ...rsvp }: RsvpHandlers & { game: NextUpView }) {
+  const { c } = useTheme();
+  const status =
+    game.my?.status === "offered" ? { label: "Claim spot", bg: c.lime, fg: c.limeInk }
+    : game.my?.status === "waitlist" && game.position ? { label: `#${game.position} in line`, bg: "rgba(255,255,255,0.12)", fg: "#FFFFFF" }
+    : null;
+  // The row opens the game; the RSVP pill sits beside it rather than inside, so the two taps never overlap.
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 10, paddingRight: 14, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.08)" }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Next up: ${game.title}, ${game.whenLabel} ${game.time} ${game.ampm}`}
+        onPress={() => router.push(`/g/${game.code}`)}
+        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingLeft: 14 }}
+      >
+        <View>
+          <Mono size={10} color={c.lime}>
+            {game.whenLabel}
+          </Mono>
+          <Disp size={22} color="#FFFFFF">
+            {game.time}
+            <Disp size={13} color="rgba(255,255,255,0.5)"> {game.ampm}</Disp>
+          </Disp>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Body size={14.5} weight="semibold" color="#FFFFFF" numberOfLines={1}>
+            {game.title}
+          </Body>
+          <Body size={12.5} color="rgba(255,255,255,0.6)" numberOfLines={1}>
+            {game.going} going · {game.locationName}
+          </Body>
+        </View>
+      </Pressable>
+      {game.my?.status === "in" || !game.my ? (
+        <RsvpPill game={game} size="sm" {...rsvp} />
+      ) : status ? (
+        <View style={{ height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: status.bg, justifyContent: "center" }}>
+          <Body size={12.5} weight="semibold" color={status.fg}>
+            {status.label}
+          </Body>
+        </View>
+      ) : (
+        <ChevronRight size={16} color="rgba(255,255,255,0.7)" />
+      )}
     </View>
   );
 }

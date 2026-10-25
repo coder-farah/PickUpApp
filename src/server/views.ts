@@ -133,6 +133,7 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
       ...card,
       status: g.status,
       notes: g.notes,
+      durationMinutes: Math.round((g.endsAt.getTime() - g.startsAt.getTime()) / 60_000),
       minPlayers: g.minPlayers,
       claimMinutes: g.claimMinutes,
       guestsAllowed: g.guestsAllowed,

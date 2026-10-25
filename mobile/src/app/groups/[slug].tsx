@@ -6,13 +6,14 @@ import { Avatar } from "@/components/Avatar";
 import { CrewCrest } from "@/components/CrewTile";
 import { GameList } from "@/components/GameCard";
 import { NightHero } from "@/components/NightHero";
-import { TopBar } from "@/components/TopBar";
+import { TopBar, useScrolled } from "@/components/TopBar";
 import { Badge, Body, Button, Card, Disp, ErrorView, Loading, Mono, Page, SectionTitle } from "@/components/ui";
 import { useTheme } from "@/theme";
 
 export default function CrewScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { c } = useTheme();
+  const { scrolled, onScroll } = useScrolled();
   const { data, isLoading, error, refetch, isRefetching } = useCrew(slug);
   const act = useCrewAction(slug);
   if (isLoading) return <Loading />;
@@ -21,8 +22,8 @@ export default function CrewScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night back onShare={() => void shareLink(`Play with ${crew.name} on Pitchin.`, crew.inviteUrl ?? crew.shareUrl)} />
-      <Page refreshing={isRefetching} onRefresh={() => void refetch()} tabBar={false}>
+      <TopBar night back onShare={() => void shareLink(`Play with ${crew.name} on Pitchin.`, crew.inviteUrl ?? crew.shareUrl)} glass={scrolled} />
+      <Page refreshing={isRefetching} onRefresh={() => void refetch()} tabBar={false} onScroll={onScroll}>
         <NightHero fade={100}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
             <CrewCrest name={crew.name} size={64} />

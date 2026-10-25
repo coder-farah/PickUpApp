@@ -9,6 +9,8 @@ import {
   Text,
   TextInput,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type PressableProps,
   type StyleProp,
   type TextInputProps,
@@ -303,6 +305,7 @@ export function Page({
   padTop = 0,
   tabBar = true,
   style,
+  onScroll,
 }: {
   children: ReactNode;
   refreshing?: boolean;
@@ -310,6 +313,7 @@ export function Page({
   padTop?: number;
   tabBar?: boolean;
   style?: StyleProp<ViewStyle>;
+  onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }) {
   const { c } = useTheme();
   return (
@@ -319,6 +323,8 @@ export function Page({
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.muted} /> : undefined}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="never"
+      onScroll={onScroll}
+      scrollEventThrottle={onScroll ? 32 : undefined}
     >
       {children}
     </ScrollView>

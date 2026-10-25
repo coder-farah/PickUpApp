@@ -7,11 +7,12 @@ import { useCrewAction, useGame, useGameAction, type GameAction } from "@/api/ho
 import type { GameDetailView, RosterView } from "@/api/types";
 import { useCountdown } from "@/lib/countdown";
 import { shareLink } from "@/lib/share";
+import { openDirections } from "@/lib/directions";
 import { Avatar, Faces } from "@/components/Avatar";
 import { Check, ChevronDown, MapPin, Repeat, UserPlus, X } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
 import { Sheet } from "@/components/Sheet";
-import { TopBar } from "@/components/TopBar";
+import { TopBar, useScrolled } from "@/components/TopBar";
 import { Badge, Body, Button, Card, Disp, ErrorView, Input, Loading, Mono, Notice, Page, SectionTitle } from "@/components/ui";
 import { useTheme } from "@/theme";
 
@@ -29,6 +30,7 @@ function whoLine(names: string[]) {
 export default function GameScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const { c } = useTheme();
+  const { scrolled, onScroll } = useScrolled();
   const { data, isLoading, error, refetch, isRefetching } = useGame(code);
   const act = useGameAction(code);
   const [notice, setNotice] = useState<string | null>(null);
@@ -53,8 +55,8 @@ export default function GameScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night back onShare={() => void shareLink(g.shareText.replace(/\nRSVP here: .*$/, "\nRSVP here:"), g.shareUrl)} />
-      <Page refreshing={isRefetching} onRefresh={() => void refetch()} tabBar={false}>
+      <TopBar night back onShare={() => void shareLink(g.shareText.replace(/\nRSVP here: .*$/, "\nRSVP here:"), g.shareUrl)} glass={scrolled} />
+      <Page refreshing={isRefetching} onRefresh={() => void refetch()} tabBar={false} onScroll={onScroll}>
         <NightHero fade={100}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Mono size={11.5} color={c.lime}>
@@ -104,13 +106,16 @@ export default function GameScreen() {
           </Card>
 
           <View style={{ gap: 12 }}>
-            <Pressable onPress={() => void Linking.openURL(g.mapsUrl)} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <MapPin size={16} color={c.muted} />
-              <Body style={{ flexShrink: 1 }} numberOfLines={1}>
-                <Body style={{ textDecorationLine: "underline" }}>{g.locationName}</Body>
-                {g.locationAddress ? <Body color={c.muted}> · {g.locationAddress}</Body> : null}
-              </Body>
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Pressable accessibilityRole="link" onPress={() => openDirections(g)} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <MapPin size={16} color={c.muted} />
+                <Body style={{ flexShrink: 1 }} numberOfLines={2}>
+                  <Body style={{ textDecorationLine: "underline" }}>{g.locationName}</Body>
+                  {g.locationAddress ? <Body color={c.muted}> · {g.locationAddress}</Body> : null}
+                </Body>
+              </Pressable>
+              <Button title="Directions" size="sm" variant="secondary" onPress={() => openDirections(g)} />
+            </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Avatar name={data.host.name} seed={data.host.id} photo={data.host.photo} size={18} />
               <Body color={c.ink2}>Hosted by {data.host.name}</Body>
@@ -441,6 +446,7 @@ function HostTools({ data, run, busy }: { data: GameDetailView; run: Run; busy: 
   return (
     <Card style={{ gap: 14 }}>
       <Mono eyebrow>Host tools</Mono>
+      <Button title="Edit time, place or details" variant="secondary" onPress={() => router.push(`/edit/${data.game.code}`)} />
       <View style={{ gap: 8 }}>
         <Body weight="medium" size={14}>
           Cap

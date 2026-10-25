@@ -158,8 +158,11 @@ function useCollapse(nextBottom: number, tops: number[], headerBottom: number, m
   // The panel's bottom passes under the header (about 110pt tall with the pinned row) at `end`.
   const end = Number.isFinite(nextBottom) ? Math.max(nextBottom - 110, 60) : 1e6;
   const start = end - 150;
-  // Card i shrinks into row i under the header: it starts as its top reaches that row's slot.
-  const marks = tops.map((top, i) => Math.max(Math.min(top - headerBottom - i * ROW_STEP - ROW_HEIGHT, maxScroll - 40 - (tops.length - 1 - i) * 24), 1));
+  // Card i shrinks into row i under the header: it starts as its top reaches that row's slot. Cards near the end of the
+  // page can't scroll that far, so they stay full cards; folding them early would leave a hole where they were.
+  const natural = tops.map((top, i) => Math.max(top - headerBottom - i * ROW_STEP - ROW_HEIGHT, 1));
+  const reach = natural.findIndex((m) => m > maxScroll - 20);
+  const marks = reach < 0 ? natural : natural.slice(0, reach);
   live.current.end = end;
   live.current.marks = marks;
 

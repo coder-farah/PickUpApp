@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Alert, ScrollView, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { Alert, Animated, ScrollView, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useGameAction, useHome } from "@/api/hooks";
@@ -10,7 +10,7 @@ import { CrewTile } from "@/components/CrewTile";
 import { GameList } from "@/components/GameCard";
 import { ChevronRight, MapPin, Search } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
-import { TopBar, useScrolled } from "@/components/TopBar";
+import { TopBar } from "@/components/TopBar";
 import { Body, Button, Disp, EmptyState, ErrorView, Loading, Mono, Page, SectionTitle } from "@/components/ui";
 import { useTheme } from "@/theme";
 import { Pressable } from "react-native";
@@ -18,11 +18,11 @@ import { Pressable } from "react-native";
 export default function HomeScreen() {
   const { c } = useTheme();
   const { data, isLoading, error, refetch, isRefetching } = useHome();
-  const { y, scrolled, onScroll } = useScrolled();
-  // Once the big next-game panel has scrolled under the header, a compact copy stays pinned in the header.
+  // Where the big next-game panel ends, measured once it lays out.
   const [nextBottom, setNextBottom] = useState(Infinity);
   // After you tap "You're in" to drop out, that game stays up top with "RSVP now" so you can undo.
   const [dropped, setDropped] = useState<NextUpView | null>(null);
+  const motion = useCollapse(nextBottom);
   if (isLoading) return <Loading />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load your games."} onRetry={() => void refetch()} />;
   const next = dropped ?? data.next;
@@ -33,18 +33,22 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night unread={data.unread} glass={scrolled}>
-        {next && y > nextBottom - 120 ? <PinnedNext game={next} {...rsvp} /> : null}
+      <TopBar night unread={data.unread} progress={next ? motion.pin : motion.glass}>
+        {next ? (
+          <Animated.View pointerEvents={motion.pinned ? "auto" : "none"} style={motion.pinnedStyle}>
+            <PinnedNext game={next} {...rsvp} />
+          </Animated.View>
+        ) : null}
       </TopBar>
-      <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={onScroll}>
+      <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={motion.onScroll}>
         <NightHero>
           <Body size={15} color="rgba(255,255,255,0.6)">
             {data.greeting}
           </Body>
           {next ? (
-            <View onLayout={(e) => setNextBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)}>
+            <Animated.View onLayout={(e) => setNextBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)} style={motion.panelStyle}>
               <NextUp game={next} {...rsvp} />
-            </View>
+            </Animated.View>
           ) : (
             <NothingNext />
           )}
@@ -113,6 +117,49 @@ export default function HomeScreen() {
       </Page>
     </View>
   );
+}
+
+/**
+ * One scroll value drives the whole hand-off, so it tracks your finger instead of snapping: as the next-game panel
+ * nears the header it shrinks, drifts and fades, while the header's night glass and the compact pinned row fade and
+ * settle in over the same stretch of scroll. Runs on the native driver.
+ */
+function useCollapse(nextBottom: number) {
+  const y = useRef(new Animated.Value(0)).current;
+  const [pinned, setPinned] = useState(false);
+  const pinnedRef = useRef(false);
+  // The panel's bottom passes under the header (about 110pt tall with the pinned row) at `end`.
+  const end = Number.isFinite(nextBottom) ? Math.max(nextBottom - 110, 60) : 1e6;
+  const start = end - 150;
+  const endRef = useRef(end);
+  endRef.current = end;
+
+  const onScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
+        useNativeDriver: true,
+        listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+          const on = e.nativeEvent.contentOffset.y > endRef.current - 40;
+          if (on !== pinnedRef.current) setPinned((pinnedRef.current = on));
+        },
+      }),
+    [y],
+  );
+
+  return useMemo(() => {
+    const range = (from: number, to: number, out: number[]) => y.interpolate({ inputRange: [from, to], outputRange: out, extrapolate: "clamp" });
+    return {
+      onScroll,
+      pinned,
+      pin: range(start + 40, end, [0, 1]),
+      glass: range(0, 24, [0, 1]),
+      pinnedStyle: { opacity: range(start + 40, end, [0, 1]), transform: [{ translateY: range(start, end, [18, 0]) }, { scale: range(start, end, [0.94, 1]) }] },
+      panelStyle: {
+        opacity: range(start - 40, end - 30, [1, 0]),
+        transform: [{ translateY: range(start - 120, end, [0, 36]) }, { scale: range(start - 120, end, [1, 0.9]) }],
+      },
+    };
+  }, [y, onScroll, pinned, start, end]);
 }
 
 type RsvpHandlers = { onDropped: (game: NextUpView) => void; onRejoined: () => void };

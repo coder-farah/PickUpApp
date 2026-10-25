@@ -1,9 +1,9 @@
 import { type ReactNode } from "react";
 import {
   ActivityIndicator,
+  Animated,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Switch as RNSwitch,
   Text,
@@ -313,21 +313,22 @@ export function Page({
   padTop?: number;
   tabBar?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** A plain handler, or an `Animated.event` (native driver works: the page is an Animated.ScrollView). */
   onScroll?: (e: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }) {
   const { c } = useTheme();
   return (
-    <ScrollView
+    <Animated.ScrollView
       style={{ flex: 1, backgroundColor: c.bg }}
       contentContainerStyle={[{ paddingTop: padTop, paddingBottom: tabBar ? 120 : 48 }, style]}
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.muted} /> : undefined}
       keyboardShouldPersistTaps="handled"
       contentInsetAdjustmentBehavior="never"
       onScroll={onScroll}
-      scrollEventThrottle={onScroll ? 32 : undefined}
+      scrollEventThrottle={onScroll ? 16 : undefined}
     >
       {children}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 

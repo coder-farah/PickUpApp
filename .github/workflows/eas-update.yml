@@ -1,0 +1,58 @@
+name: App update
+
+# Ships JavaScript-only changes (screens, text, styles) to phones that already have the app, without a new build or a
+# build credit. Phones pick it up the next time the app is opened. Only builds with the same app version (app.config.ts
+# `version`) get it, so a change that adds a native module still needs "iOS build" with a bumped version.
+# Run it from the Actions tab: Actions > App update > Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Which builds get it
+        type: choice
+        options: [production, preview]
+        default: production
+      message:
+        description: What changed (shown in Expo's dashboard)
+        type: string
+        required: true
+
+concurrency:
+  group: eas-update-${{ inputs.profile }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # The same server address the build used, since `eas update` bakes it into the JavaScript bundle.
+      - name: Publish
+        env:
+          EAS_BUILD_PROFILE: ${{ inputs.profile }}
+          EXPO_PUBLIC_API_URL: ${{ inputs.profile == 'production' && vars.API_URL || vars.STAGING_API_URL }}
+          APP_LINK_DOMAIN: ${{ inputs.profile == 'production' && vars.APP_LINK_DOMAIN || vars.STAGING_APP_LINK_DOMAIN }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          if [ -z "$EXPO_PUBLIC_API_URL" ]; then EXPO_PUBLIC_API_URL=$(jq -r --arg p "$EAS_BUILD_PROFILE" '.build[$p].env.EXPO_PUBLIC_API_URL' eas.json); fi
+          if [ -z "$APP_LINK_DOMAIN" ]; then APP_LINK_DOMAIN=$(jq -r --arg p "$EAS_BUILD_PROFILE" '.build[$p].env.APP_LINK_DOMAIN // empty' eas.json); fi
+          export EXPO_PUBLIC_API_URL APP_LINK_DOMAIN
+          echo "Updating $EAS_BUILD_PROFILE builds, pointed at $EXPO_PUBLIC_API_URL"
+          eas update --channel "$EAS_BUILD_PROFILE" --platform ios --message "$MESSAGE" --non-interactive

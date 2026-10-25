@@ -42,3 +42,32 @@ export async function refreshPushRegistration() {
 }
 
 export const clearBadge = () => (Platform.OS === "web" ? Promise.resolve() : Notifications.setBadgeCountAsync(0).then(() => undefined));
+
+/**
+ * Buttons on the lock-screen notification (press and hold it). The server picks the set by what the notification is
+ * about: a game that just opened gets "I'm in", a game you're in gets "Can't make it", a held spot gets "Claim it".
+ */
+export const PUSH_ACTIONS = { join: "I'm in", leave: "Can't make it", claim: "Claim it", decline: "Pass" } as const;
+export type PushAction = keyof typeof PUSH_ACTIONS;
+
+const CATEGORIES: Record<string, PushAction[]> = {
+  join: ["join"],
+  playing: ["leave"],
+  claim: ["claim"],
+  offer: ["claim", "decline"],
+};
+
+export async function registerPushActions() {
+  if (Platform.OS === "web") return;
+  await Promise.all(
+    Object.entries(CATEGORIES).map(([id, actions]) =>
+      Notifications.setNotificationCategoryAsync(
+        id,
+        actions.map((a) => ({ identifier: a, buttonTitle: PUSH_ACTIONS[a], options: { opensAppToForeground: true, isDestructive: a === "leave" || a === "decline" } })),
+      ),
+    ),
+  ).catch(() => undefined);
+}
+
+/** "/g/abc123" → "abc123" */
+export const gameCodeFrom = (url: unknown) => (typeof url === "string" ? (/^\/g\/([^/?#]+)/.exec(url)?.[1] ?? null) : null);

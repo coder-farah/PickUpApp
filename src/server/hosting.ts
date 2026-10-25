@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db, t } from "./db";
 import * as engine from "./engine";
@@ -160,7 +160,7 @@ async function uniqueSlug(name: string) {
   return `${base}-${shortCode(8)}`;
 }
 
-/** A crew with its first weekly game. Returns the crew's slug. */
+/** A crew with its first weekly game. Returns the crew's slug and the first game's code. */
 export async function createCrew(user: SessionUser, raw: CrewInput) {
   const input = crewInput.parse(raw);
   if (input.name.length < 3) throw new GameError("Name your group, like “Tuesday Night 7v7”.");
@@ -211,7 +211,8 @@ export async function createCrew(user: SessionUser, raw: CrewInput) {
     return { g, s };
   });
   await materializeSchedule(created.s, created.g, new Date());
-  return { slug };
+  const [first] = await db.select({ code: t.games.code }).from(t.games).where(eq(t.games.scheduleId, created.s.id)).orderBy(asc(t.games.startsAt)).limit(1);
+  return { slug, code: first?.code ?? null };
 }
 
 /**

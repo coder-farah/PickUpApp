@@ -14,8 +14,8 @@ export const keys = {
 export const useHome = () => useQuery({ queryKey: keys.home, queryFn: () => api<HomeView>("/api/v1/home") });
 export const useMe = () => useQuery({ queryKey: keys.me, queryFn: () => api<MeView>("/api/v1/me") });
 export const useInbox = () => useQuery({ queryKey: keys.inbox, queryFn: () => api<InboxView>("/api/v1/inbox") });
-export const useGame = (code: string) =>
-  useQuery({ queryKey: keys.game(code), queryFn: () => api<GameDetailView>(`/api/v1/games/${encodeURIComponent(code)}`) });
+export const useGame = (code: string, enabled = true) =>
+  useQuery({ queryKey: keys.game(code), queryFn: () => api<GameDetailView>(`/api/v1/games/${encodeURIComponent(code)}`), enabled });
 export const useCrew = (slug: string) =>
   useQuery({ queryKey: keys.crew(slug), queryFn: () => api<CrewView>(`/api/v1/crews/${encodeURIComponent(slug)}`) });
 

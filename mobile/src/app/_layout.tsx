@@ -7,10 +7,13 @@ import { useFonts } from "expo-font";
 import { Geist_400Regular, Geist_500Medium, Geist_600SemiBold } from "@expo-google-fonts/geist";
 import { GeistMono_400Regular, GeistMono_500Medium } from "@expo-google-fonts/geist-mono";
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
-import { AppState, Platform } from "react-native";
+import { Alert, AppState, Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { refreshPushRegistration } from "@/lib/push";
+import { api } from "@/api/client";
+import { keys } from "@/api/hooks";
+import type { GameDetailView } from "@/api/types";
+import { PUSH_ACTIONS, gameCodeFrom, refreshPushRegistration, registerPushActions, type PushAction } from "@/lib/push";
 import { useTheme } from "@/theme";
 
 void SplashScreen.preventAutoHideAsync();
@@ -52,15 +55,29 @@ function Navigator() {
     if (signedIn) void refreshPushRegistration();
   }, [status, signedIn]);
 
-  // Tapping a notification opens the game or crew it's about.
+  // Tapping a notification opens the game or crew it's about. A button on it (I'm in, Can't make it…) acts first.
   useEffect(() => {
     if (Platform.OS === "web" || !signedIn) return;
-    const open = (r: Notifications.NotificationResponse | null) => {
-      const url = r?.notification.request.content.data?.url;
+    void registerPushActions();
+    const open = async (r: Notifications.NotificationResponse | null) => {
+      if (!r) return;
+      Notifications.clearLastNotificationResponse();
+      const url = r.notification.request.content.data?.url;
+      const action = r.actionIdentifier as PushAction;
+      const code = gameCodeFrom(url);
+      if (code && action in PUSH_ACTIONS) {
+        try {
+          const fresh = await api<GameDetailView>(`/api/v1/games/${encodeURIComponent(code)}/${action}`, { body: {} });
+          queryClient.setQueryData(keys.game(code), fresh);
+          void queryClient.invalidateQueries({ queryKey: keys.home });
+        } catch (err) {
+          Alert.alert("Couldn't do that", (err as Error).message);
+        }
+      }
       if (typeof url === "string" && url.startsWith("/")) router.push(url as never);
     };
     void Notifications.getLastNotificationResponseAsync().then(open);
-    const sub = Notifications.addNotificationResponseReceivedListener(open);
+    const sub = Notifications.addNotificationResponseReceivedListener((r) => void open(r));
     return () => sub.remove();
   }, [signedIn]);
 

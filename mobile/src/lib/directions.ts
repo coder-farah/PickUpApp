@@ -1,4 +1,5 @@
-import { ActionSheetIOS, Alert, Linking, Platform } from "react-native";
+import { Alert, Linking } from "react-native";
+import { showMenu } from "./menu";
 
 type Place = { locationName: string; locationAddress: string | null; lat: number | null; lng: number | null };
 
@@ -17,18 +18,10 @@ export function directionLinks(p: Place) {
 /** Ask which maps app to use, then open turn-by-turn directions to the game. */
 export function openDirections(p: Place) {
   const links = directionLinks(p);
-  const options = [
-    { label: "Apple Maps", url: links.apple },
-    { label: "Google Maps", url: links.google },
-    { label: "Waze", url: links.waze },
-  ];
   const open = (url: string) => void Linking.openURL(url).catch(() => Alert.alert("Couldn't open maps"));
-  if (Platform.OS === "ios") {
-    ActionSheetIOS.showActionSheetWithOptions(
-      { title: p.locationName, options: [...options.map((o) => o.label), "Cancel"], cancelButtonIndex: options.length },
-      (i) => i < options.length && open(options[i].url),
-    );
-  } else {
-    Alert.alert(p.locationName, "Get directions with", [...options.map((o) => ({ text: o.label, onPress: () => open(o.url) })), { text: "Cancel", style: "cancel" }]);
-  }
+  showMenu(p.locationName, [
+    { label: "Apple Maps", onPress: () => open(links.apple) },
+    { label: "Google Maps", onPress: () => open(links.google) },
+    { label: "Waze", onPress: () => open(links.waze) },
+  ]);
 }

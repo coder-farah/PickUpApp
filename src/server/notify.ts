@@ -30,6 +30,19 @@ export type NotificationInput = {
   sms?: boolean;
 };
 
+export type NotificationKind = NotificationInput["kind"];
+
+/** Which buttons the app puts on each push: "join" (I'm in), "playing" (Can't make it), "claim", "offer" (Claim it, Pass). */
+export const PUSH_CATEGORY: Partial<Record<NotificationKind, string>> = {
+  rsvps_open: "join",
+  game_on: "playing",
+  game_confirmed: "playing",
+  game_changed: "playing",
+  promoted: "playing",
+  last_call: "claim",
+  spot_offered: "offer",
+};
+
 /** Write inbox rows inside the caller's transaction. Texts go out later via `dispatchPending`. */
 export async function queueNotifications(tx: DbOrTx, items: NotificationInput[]) {
   if (items.length === 0) return;
@@ -89,7 +102,8 @@ export async function dispatchPending(limit = 100) {
     const mine = tokens.filter((tk) => tk.userId === n.userId);
     if (mine.length) {
       const badge = unread.find((u) => u.userId === n.userId)?.n;
-      for (const tk of mine) pushes.push({ to: tk.token, title: n.title, body: n.body, url: n.url, badge });
+      const categoryId = PUSH_CATEGORY[n.kind as NotificationKind];
+      for (const tk of mine) pushes.push({ to: tk.token, title: n.title, body: n.body, url: n.url, badge, categoryId });
       continue;
     }
     if (!smsEnabled || !phone) continue; // Apple sign-ins without a phone only get the inbox

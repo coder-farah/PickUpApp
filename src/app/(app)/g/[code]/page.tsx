@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Check, Clock, MapPin, Repeat, UserPlus, X } from "lucide-react";
+import { ArrowLeft, CalendarPlus, Check, Clock, MapPin, Repeat, UserPlus, X } from "lucide-react";
 import { getCurrentUser } from "@/server/auth";
 import { getGamePage, type GamePageData } from "@/server/queries";
 import { absoluteUrl } from "@/server/notify";
@@ -21,7 +21,7 @@ import { NightHero } from "@/components/NightHero";
 import { Badge, Input, SectionTitle, buttonClass } from "@/components/ui";
 import { gameState, goingCount, roomNote, spotsLeft } from "@/lib/game-state";
 import { fmtDay, fmtRelative, fmtShortWhen, fmtStep, fmtTime, fmtWhen } from "@/lib/time";
-import { sportEmoji, sportLabel } from "@/lib/sports";
+import { sportEmoji } from "@/lib/sports";
 import { cn } from "@/lib/cn";
 
 type Props = { params: Promise<{ code: string }>; searchParams: Promise<{ created?: string; out?: string }> };
@@ -84,7 +84,7 @@ export default async function GamePage({ params, searchParams }: Props) {
         <div className="rise mt-8 flex flex-col">
           <div className="flex flex-wrap items-center gap-2">
             <span className="mono text-[11.5px] text-lime">
-              {sportLabel(game.sport)} · {game.scheduleId ? "Weekly" : "One-time"}
+              {game.scheduleId ? "Weekly game" : "One-time game"}
             </span>
             {(state.key === "cancelled" || state.key === "live" || state.key === "soon") && <Badge tone={state.key === "live" ? "lime" : "neutral"}>{state.label}</Badge>}
           </div>
@@ -137,6 +137,9 @@ export default async function GamePage({ params, searchParams }: Props) {
           <dl className="flex flex-col divide-y divide-line border-y border-line">
             <Detail label="When">
               {fmtDay(game.startsAt, game.timezone)}, {fmtTime(game.startsAt, game.timezone)} – {fmtTime(game.endsAt, game.timezone)}
+              <a href={`/g/${game.code}/calendar.ics`} className="mt-1 flex w-fit items-center gap-1.5 text-[13px] font-medium text-pitch underline-offset-4 hover:underline">
+                <CalendarPlus className="size-3.5" /> Add to calendar
+              </a>
             </Detail>
             <Detail label="Where">
               <a href={mapsUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 underline-offset-4 hover:underline">

@@ -1,48 +1,55 @@
 import { useId } from "react";
-import Svg, { Circle, ClipPath, Defs, G, Line, Polygon } from "react-native-svg";
+import Svg, { Circle, ClipPath, Defs, G, Line, Polygon, RadialGradient, Stop } from "react-native-svg";
 
-/** Points of a pentagon centred on (x, y), with one corner pointing at `angle` degrees (0 is straight up). */
-function pentagon(x: number, y: number, r: number, angle: number) {
-  return Array.from({ length: 5 }, (_, i) => {
-    const a = ((angle + i * 72 - 90) * Math.PI) / 180;
-    return `${(x + r * Math.cos(a)).toFixed(2)},${(y + r * Math.sin(a)).toFixed(2)}`;
-  }).join(" ");
-}
+type Pt = { x: number; y: number };
 
-const at = (deg: number, d: number) => {
+/** A point `d` from the centre at `deg` degrees, clockwise from straight up (the art is on a 100×100 box). */
+const polar = (deg: number, d: number, from: Pt = { x: 50, y: 50 }): Pt => {
   const a = ((deg - 90) * Math.PI) / 180;
-  return { x: 50 + d * Math.cos(a), y: 50 + d * Math.sin(a) };
+  return { x: from.x + d * Math.cos(a), y: from.y + d * Math.sin(a) };
 };
+/** Corners of a pentagon, the first pointing at `deg`, going clockwise. */
+const pentagon = (c: Pt, r: number, deg: number) => Array.from({ length: 5 }, (_, i) => polar(deg + i * 72, r, c));
+const pts = (p: Pt[]) => p.map((q) => `${q.x.toFixed(2)},${q.y.toFixed(2)}`).join(" ");
 
-/** A classic black-and-white ball, drawn rather than an image so it stays crisp at any size. */
-export function SoccerBall({ size = 28, patch = "#0B1F14", shell = "#FFFFFF" }: { size?: number; patch?: string; shell?: string }) {
-  const clip = `ball-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+// The classic truncated-icosahedron view: a pentagon facing you, five hexagons round it, and five more pentagons
+// toward the rim. Each seam between two hexagons runs from a corner of the middle pentagon to the facing corner of an
+// outer one; the outer pentagons' side corners join up to close the hexagons.
+const CENTER = pentagon({ x: 50, y: 50 }, 15, 0);
+const OUTER = [0, 72, 144, 216, 288].map((deg) => pentagon(polar(deg, 40), 13.5, deg + 180));
+const SEAMS: [Pt, Pt][] = OUTER.flatMap((p, k) => [
+  [CENTER[k], p[0]] as [Pt, Pt],
+  [p[4], OUTER[(k + 1) % 5][1]] as [Pt, Pt],
+  // The far hexagons, only their inner edges show before the rim.
+  [p[2], polar(k * 72 + 36, 52)] as [Pt, Pt],
+]);
+
+/** A black-and-white soccer ball, drawn so it stays crisp at any size. */
+export function SoccerBall({ size = 28, patch = "#111814" }: { size?: number; patch?: string }) {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       <Defs>
-        <ClipPath id={clip}>
+        <ClipPath id={`clip${id}`}>
           <Circle cx={50} cy={50} r={47} />
         </ClipPath>
+        <RadialGradient id={`shade${id}`} cx="38%" cy="32%" r="75%">
+          <Stop offset="0" stopColor="#FFFFFF" />
+          <Stop offset="0.65" stopColor="#F1F2EE" />
+          <Stop offset="1" stopColor="#C9CCC4" />
+        </RadialGradient>
       </Defs>
-      <Circle cx={50} cy={50} r={47} fill={shell} />
-      <G clipPath={`url(#${clip})`} fill={patch} stroke={patch} strokeWidth={3} strokeLinejoin="round">
-        <Polygon points={pentagon(50, 50, 16, 0)} />
-        {[0, 72, 144, 216, 288].map((deg) => {
-          const seamFrom = at(deg, 16);
-          const seamTo = at(deg, 32);
-          const outer = at(deg + 36, 46);
-          return (
-            <G key={deg}>
-              <Line x1={seamFrom.x} y1={seamFrom.y} x2={seamTo.x} y2={seamTo.y} />
-              <Line x1={seamTo.x} y1={seamTo.y} x2={at(deg + 36, 30).x} y2={at(deg + 36, 30).y} />
-              <Line x1={seamTo.x} y1={seamTo.y} x2={at(deg - 36, 30).x} y2={at(deg - 36, 30).y} />
-              <Polygon points={pentagon(outer.x, outer.y, 15, deg + 36 + 180)} />
-            </G>
-          );
-        })}
+      <Circle cx={50} cy={50} r={47} fill={`url(#shade${id})`} />
+      <G clipPath={`url(#clip${id})`} stroke={patch} strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round">
+        {SEAMS.map(([a, b], i) => (
+          <Line key={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+        ))}
+        <Polygon points={pts(CENTER)} fill={patch} />
+        {OUTER.map((p, i) => (
+          <Polygon key={i} points={pts(p)} fill={patch} />
+        ))}
       </G>
-      {/* A white rim keeps the outline round on dark backgrounds, where edge patches would blend in. */}
-      <Circle cx={50} cy={50} r={45.5} fill="none" stroke={shell} strokeWidth={5} />
+      <Circle cx={50} cy={50} r={46.5} fill="none" stroke={patch} strokeOpacity={0.5} strokeWidth={1.5} />
     </Svg>
   );
 }

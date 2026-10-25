@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import { BlurView } from "expo-blur";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { router } from "expo-router";
@@ -34,7 +34,7 @@ export function TopBar({
   onShare,
   glass = true,
   progress,
-  accessory,
+  onLayout,
   children,
 }: {
   night?: boolean;
@@ -44,8 +44,7 @@ export function TopBar({
   glass?: boolean;
   /** Drives the glass from scroll instead (0 clear, 1 glass), so it can fade in step with something else. */
   progress?: Animated.AnimatedInterpolation<number>;
-  /** Sits in the top row, just before the share and inbox buttons. */
-  accessory?: ReactNode;
+  onLayout?: (e: LayoutChangeEvent) => void;
   children?: ReactNode;
 }) {
   const { c } = useTheme();
@@ -58,7 +57,7 @@ export function TopBar({
   const tint = night ? c.night : c.bg;
   const chip = { width: 40, height: 40, borderRadius: 20, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: night ? c.night2 : c.surface };
   return (
-    <View pointerEvents="box-none" style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingTop: insets.top + 6, paddingBottom: 8, paddingHorizontal: 16 }}>
+    <View pointerEvents="box-none" onLayout={onLayout} style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, paddingTop: insets.top + 6, paddingBottom: 8, paddingHorizontal: 16 }}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: progress ?? shown }]}>
         <View ref={Platform.OS === "web" ? webGlass : undefined} style={[StyleSheet.absoluteFill, { backgroundColor: tint, opacity: night ? 1 : 0.94 }]}>
           {Platform.OS === "ios" && <BlurView intensity={30} tint={night ? "dark" : "light"} style={StyleSheet.absoluteFill} />}
@@ -87,7 +86,6 @@ export function TopBar({
         </View>
       )}
       <View style={{ flex: 1 }} />
-      {accessory}
       {onShare && (
         <Pressable accessibilityLabel="Share" onPress={onShare} style={chip}>
           <ShareIcon size={18} color={fg} />

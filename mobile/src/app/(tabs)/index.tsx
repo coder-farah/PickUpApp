@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Alert, Animated, ScrollView, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { Alert, Animated, ScrollView, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useGameAction, useHome } from "@/api/hooks";
@@ -25,13 +25,17 @@ export default function HomeScreen() {
   // After you tap "You're in" to drop out, that game stays up top with "RSVP now" so you can undo.
   const [dropped, setDropped] = useState<NextUpView | null>(null);
   // Where the first few "Also on your list" cards sit in the scroll content, so each can turn into a ball in the header.
-  const [listAt, setListAt] = useState({ content: 0, section: 0, list: 0 });
+  const [listAt, setListAt] = useState({ content: 0, contentHeight: 0, section: 0, list: 0 });
+  const { height: screenHeight } = useWindowDimensions();
   const [cardAt, setCardAt] = useState<number[]>([]);
   const insets = useSafeAreaInsets();
   const hasNext = !!(dropped ?? data?.next);
-  const headerBottom = insets.top + (hasNext ? 112 : 54);
+  const [barHeight, setBarHeight] = useState(0);
+  const headerBottom = barHeight || insets.top + (hasNext ? 112 : 54);
   const tops = cardAt.slice(0, MAX_BALLS).map((y) => listAt.content + listAt.section + listAt.list + y);
-  const motion = useCollapse(nextBottom, tops, headerBottom);
+  // The page can only scroll so far (content ends with the tab bar's 120pt of room); late cards finish before that.
+  const maxScroll = listAt.contentHeight ? listAt.content + listAt.contentHeight + 120 - screenHeight : Infinity;
+  const motion = useCollapse(nextBottom, tops, headerBottom, maxScroll);
   if (isLoading) return <Loading />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load your games."} onRetry={() => void refetch()} />;
   const next = dropped ?? data.next;
@@ -42,13 +46,14 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night unread={data.unread} progress={next ? motion.pin : motion.glass} accessory={<BallRack games={alsoPlaying.slice(0, MAX_BALLS)} motion={motion} />}>
+      <TopBar night unread={data.unread} progress={next ? motion.pin : motion.glass} onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}>
         {next ? (
           <Animated.View pointerEvents={motion.pinned ? "auto" : "none"} style={motion.pinnedStyle}>
             <PinnedNext game={next} {...rsvp} />
           </Animated.View>
         ) : null}
       </TopBar>
+      <BallRack games={alsoPlaying.slice(0, MAX_BALLS)} motion={motion} top={headerBottom} />
       <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={motion.onScroll}>
         <NightHero
           decor={
@@ -69,7 +74,7 @@ export default function HomeScreen() {
           )}
         </NightHero>
 
-        <View onLayout={(e) => setListAt((a) => ({ ...a, content: e.nativeEvent.layout.y }))} style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
+        <View onLayout={(e) => setListAt((a) => ({ ...a, content: e.nativeEvent.layout.y, contentHeight: e.nativeEvent.layout.height }))} style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
           {alsoPlaying.length > 0 && (
             <View onLayout={(e) => setListAt((a) => ({ ...a, section: e.nativeEvent.layout.y }))}>
               <SectionTitle>Also on your list</SectionTitle>
@@ -152,7 +157,7 @@ export default function HomeScreen() {
  * nears the header it shrinks, drifts and fades, while the header's night glass and the compact pinned row fade and
  * settle in over the same stretch of scroll. Runs on the native driver.
  */
-function useCollapse(nextBottom: number, tops: number[], headerBottom: number) {
+function useCollapse(nextBottom: number, tops: number[], headerBottom: number, maxScroll: number) {
   const y = useRef(new Animated.Value(0)).current;
   const [pinned, setPinned] = useState(false);
   const [ballsIn, setBallsIn] = useState(0);
@@ -160,8 +165,8 @@ function useCollapse(nextBottom: number, tops: number[], headerBottom: number) {
   // The panel's bottom passes under the header (about 110pt tall with the pinned row) at `end`.
   const end = Number.isFinite(nextBottom) ? Math.max(nextBottom - 110, 60) : 1e6;
   const start = end - 150;
-  // Card i reaches the bottom of the header at marks[i]; that's when it becomes a ball.
-  const marks = tops.map((top) => Math.max(top - headerBottom, 1));
+  // Card i reaches the ball rack, in the fade under the header, at marks[i]; that's when it becomes a ball.
+  const marks = tops.map((top, i) => Math.max(Math.min(top - headerBottom - RACK, maxScroll - 40 - (tops.length - 1 - i) * 24), 1));
   live.current.end = end;
   live.current.marks = marks;
 
@@ -222,20 +227,23 @@ function useCollapse(nextBottom: number, tops: number[], headerBottom: number) {
 
 type Motion = ReturnType<typeof useCollapse>;
 
-/** Games you've scrolled past, lined up as balls in the header with their day. Tap one to open it. */
-function BallRack({ games, motion }: { games: GameCardView[]; motion: Motion }) {
+/** Games you've scrolled past, lined up as balls in the fade under the header, with their day. Tap one to open it. */
+function BallRack({ games, motion, top }: { games: GameCardView[]; motion: Motion; top: number }) {
+  const { c } = useTheme();
   if (!games.length) return null;
   return (
-    <View pointerEvents="box-none" style={{ flexDirection: "row", gap: 6, marginRight: 4 }}>
+    <View pointerEvents="box-none" style={{ position: "absolute", top: top - 2, left: 20, zIndex: 11, flexDirection: "row", gap: 12 }}>
       {games.map((g, i) => (
         <Animated.View key={g.id} pointerEvents={i < motion.ballsIn ? "auto" : "none"} style={motion.ballStyle(i)}>
-          <Pressable accessibilityRole="link" accessibilityLabel={`${g.title}, ${g.when}`} onPress={() => router.push(`/g/${g.code}`)} style={{ alignItems: "center", width: 30 }}>
-            <Animated.View style={motion.ballSpin(i)}>
-              <SoccerBall size={22} />
+          <Pressable accessibilityRole="link" accessibilityLabel={`${g.title}, ${g.when}`} onPress={() => router.push(`/g/${g.code}`)} style={{ alignItems: "center" }}>
+            <Animated.View style={[motion.ballSpin(i), { borderRadius: 14, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 3, shadowOffset: { width: 0, height: 2 } }]}>
+              <SoccerBall size={28} />
             </Animated.View>
-            <Mono size={8.5} color="rgba(255,255,255,0.75)" style={{ marginTop: 2 }}>
-              {g.dayLabel.replace(/,.*/, "")}
-            </Mono>
+            <View style={{ marginTop: 3, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, backgroundColor: c.night }}>
+              <Mono size={9} color="#FFFFFF">
+                {g.dayLabel.replace(/,.*/, "")}
+              </Mono>
+            </View>
           </Pressable>
         </Animated.View>
       ))}
@@ -244,6 +252,8 @@ function BallRack({ games, motion }: { games: GameCardView[]; motion: Motion }) 
 }
 
 const MAX_BALLS = 4;
+/** Height of the ball rack under the header. */
+const RACK = 46;
 
 type RsvpHandlers = { onDropped: (game: NextUpView) => void; onRejoined: () => void };
 

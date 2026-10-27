@@ -61,7 +61,7 @@ const config: ExpoConfig = {
     ["expo-location", { locationWhenInUsePermission: "Pitchin uses your location only when you tap Use my location, to find games near you." }],
     "expo-font",
     "@react-native-community/datetimepicker",
-    ["expo-calendar", { calendarPermission: "Pitchin adds a game to your calendar only when you tap Add to calendar.", remindersPermission: false }],
+    ["expo-calendar", { calendarPermission: "Pitchin adds a game to your calendar only when you tap Add to calendar.", remindersPermission: "Pitchin doesn't use reminders." }],
     "expo-updates",
     ["expo-build-properties", { ios: { deploymentTarget: "15.1" } }],
   ],

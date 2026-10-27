@@ -1,11 +1,14 @@
-import { ScrollView, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import { Alert, Animated, ScrollView, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { useHome } from "@/api/hooks";
-import type { NextUpView } from "@/api/types";
+import { useGameAction, useHome } from "@/api/hooks";
+import type { GameCardView, NextUpView } from "@/api/types";
 import { useCountdown } from "@/lib/countdown";
 import { Faces } from "@/components/Avatar";
 import { CrewTile } from "@/components/CrewTile";
-import { GameList } from "@/components/GameCard";
+import { GameCard, GameList } from "@/components/GameCard";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChevronRight, MapPin, Search } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
 import { TopBar } from "@/components/TopBar";
@@ -16,25 +19,72 @@ import { Pressable } from "react-native";
 export default function HomeScreen() {
   const { c } = useTheme();
   const { data, isLoading, error, refetch, isRefetching } = useHome();
+  // Where the big next-game panel ends, measured once it lays out.
+  const [nextBottom, setNextBottom] = useState(Infinity);
+  // After you tap "You're in" to drop out, that game stays up top with "RSVP now" so you can undo.
+  const [dropped, setDropped] = useState<NextUpView | null>(null);
+  // Where the first few "Also on your list" cards sit in the scroll content, so each can turn into a row under the header.
+  const [listAt, setListAt] = useState({ content: 0, contentHeight: 0, section: 0, list: 0 });
+  const { height: screenHeight } = useWindowDimensions();
+  const [cardAt, setCardAt] = useState<number[]>([]);
+  const insets = useSafeAreaInsets();
+  const hasNext = !!(dropped ?? data?.next);
+  const [barHeight, setBarHeight] = useState(0);
+  const headerBottom = barHeight || insets.top + (hasNext ? 112 : 54);
+  const tops = cardAt.slice(0, MAX_ROWS).map((y) => listAt.content + listAt.section + listAt.list + y);
+  // The page can only scroll so far (content ends with the tab bar's 120pt of room); late cards finish before that.
+  const maxScroll = listAt.contentHeight ? listAt.content + listAt.contentHeight + 120 - screenHeight : Infinity;
+  const motion = useCollapse(nextBottom, tops, headerBottom, maxScroll);
   if (isLoading) return <Loading />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load your games."} onRetry={() => void refetch()} />;
+  const next = dropped ?? data.next;
+  // While the dropped game holds the top spot, the game that would have replaced it stays in the list below.
+  const alsoPlaying = dropped && data.next && data.next.id !== dropped.id ? [data.next, ...data.alsoPlaying] : data.alsoPlaying;
+  const openNear = data.openNear.filter((g) => g.id !== dropped?.id);
+  const rsvp = { onDropped: setDropped, onRejoined: () => void refetch().then(() => setDropped(null)) };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night unread={data.unread} />
-      <Page refreshing={isRefetching} onRefresh={() => void refetch()}>
+      <TopBar night unread={data.unread} progress={next ? motion.pin : motion.glass} onLayout={(e) => setBarHeight(e.nativeEvent.layout.height)}>
+        {next ? (
+          <Animated.View pointerEvents={motion.pinned ? "auto" : "none"} style={motion.pinnedStyle}>
+            <PinnedNext game={next} {...rsvp} />
+          </Animated.View>
+        ) : null}
+      </TopBar>
+      <PassedRows games={alsoPlaying.slice(0, MAX_ROWS)} motion={motion} top={headerBottom} />
+      <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={motion.onScroll}>
         <NightHero>
           <Body size={15} color="rgba(255,255,255,0.6)">
             {data.greeting}
           </Body>
-          {data.next ? <NextUp game={data.next} /> : <NothingNext />}
+          {next ? (
+            <Animated.View onLayout={(e) => setNextBottom(e.nativeEvent.layout.y + e.nativeEvent.layout.height)} style={motion.panelStyle}>
+              <NextUp game={next} {...rsvp} />
+            </Animated.View>
+          ) : (
+            <NothingNext />
+          )}
         </NightHero>
 
-        <View style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
-          {data.alsoPlaying.length > 0 && (
-            <View>
+        <View onLayout={(e) => setListAt((a) => ({ ...a, content: e.nativeEvent.layout.y, contentHeight: e.nativeEvent.layout.height }))} style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
+          {alsoPlaying.length > 0 && (
+            <View onLayout={(e) => setListAt((a) => ({ ...a, section: e.nativeEvent.layout.y }))}>
               <SectionTitle>Also on your list</SectionTitle>
-              <GameList games={data.alsoPlaying} showDay />
+              <View onLayout={(e) => setListAt((a) => ({ ...a, list: e.nativeEvent.layout.y }))} style={{ gap: 10 }}>
+                {alsoPlaying.map((g, i) => (
+                  <Animated.View
+                    key={g.id}
+                    onLayout={(e) => {
+                      const y = e.nativeEvent.layout.y;
+                      setCardAt((at) => (at[i] === y ? at : Object.assign([...at], { [i]: y })));
+                    }}
+                    style={i < MAX_ROWS ? motion.cardStyle(i) : undefined}
+                  >
+                    <GameCard game={g} showDay />
+                  </Animated.View>
+                ))}
+              </View>
             </View>
           )}
 
@@ -51,8 +101,8 @@ export default function HomeScreen() {
             >
               Open near you
             </SectionTitle>
-            {data.openNear.length ? (
-              <GameList games={data.openNear} showDay />
+            {openNear.length ? (
+              <GameList games={openNear} showDay />
             ) : (
               <EmptyState icon={<Search size={20} color={c.muted} />} title="Nothing open nearby" action={<Button title="Explore a wider area" onPress={() => router.push("/explore")} />}>
                 No public games in the next week within {data.area.miles} miles of {data.area.label}.
@@ -95,7 +145,192 @@ export default function HomeScreen() {
   );
 }
 
-function NextUp({ game }: { game: NextUpView }) {
+/**
+ * One scroll value drives the whole hand-off, so it tracks your finger instead of snapping: as the next-game panel
+ * nears the header it shrinks, drifts and fades, while the header's night glass and the compact pinned row fade and
+ * settle in over the same stretch of scroll. Runs on the native driver.
+ */
+function useCollapse(nextBottom: number, tops: number[], headerBottom: number, maxScroll: number) {
+  const y = useRef(new Animated.Value(0)).current;
+  const [pinned, setPinned] = useState(false);
+  const [rowsIn, setRowsIn] = useState(0);
+  const live = useRef({ pinned: false, rowsIn: 0, end: 0, marks: [] as number[] });
+  // The panel's bottom passes under the header (about 110pt tall with the pinned row) at `end`.
+  const end = Number.isFinite(nextBottom) ? Math.max(nextBottom - 110, 60) : 1e6;
+  const start = end - 150;
+  // Card i shrinks into row i under the header: it starts as its top reaches that row's slot.
+  const marks = tops.map((top, i) => Math.max(Math.min(top - headerBottom - i * ROW_STEP - ROW_HEIGHT, maxScroll - 40 - (tops.length - 1 - i) * 24), 1));
+  live.current.end = end;
+  live.current.marks = marks;
+
+  const onScroll = useMemo(
+    () =>
+      Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
+        useNativeDriver: true,
+        listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+          const at = e.nativeEvent.contentOffset.y;
+          const l = live.current;
+          const on = at > l.end - 40;
+          if (on !== l.pinned) setPinned((l.pinned = on));
+          const n = l.marks.filter((m) => at > m).length;
+          if (n !== l.rowsIn) setRowsIn((l.rowsIn = n));
+        },
+      }),
+    [y],
+  );
+
+  const key = marks.join(",");
+  return useMemo(() => {
+    const range = (from: number, to: number, out: number[]) => y.interpolate({ inputRange: [from, to], outputRange: out, extrapolate: "clamp" });
+    const steps = (input: number[], out: number[]) => y.interpolate({ inputRange: input, outputRange: out, extrapolate: "clamp" });
+    const mark = (i: number) => marks[i] ?? 1e6;
+    return {
+      onScroll,
+      pinned,
+      rowsIn,
+      pin: range(start + 40, end, [0, 1]),
+      glass: range(0, 24, [0, 1]),
+      pinnedStyle: { opacity: range(start + 40, end, [0, 1]), transform: [{ translateY: range(start, end, [18, 0]) }, { scale: range(start, end, [0.94, 1]) }] },
+      panelStyle: {
+        opacity: range(start - 40, end - 30, [1, 0]),
+        transform: [{ translateY: range(start - 120, end, [0, 36]) }, { scale: range(start - 120, end, [1, 0.9]) }],
+      },
+      // A card shrinks toward the header as it slides under it...
+      cardStyle: (i: number) => ({
+        opacity: range(mark(i) - 60, mark(i) + 6, [1, 0]),
+        transform: [{ scale: range(mark(i) - 60, mark(i) + 6, [1, 0.55]) }],
+        transformOrigin: "50% 0%",
+      }),
+      // ...and its row fades in and rises into place under the ones before it. Scrolling back up drops it out again.
+      rise: (i: number, from = 18) => ({
+        opacity: range(mark(i) - 6, mark(i) + 14, [0, 1]),
+        translateY: range(mark(i) - 6, mark(i) + 24, [from, 0]),
+        scale: range(mark(i) - 6, mark(i) + 24, [0.4, 1]),
+      }),
+    };
+    // `key` stands in for `marks`, which is a new array every render.
+  }, [y, onScroll, pinned, rowsIn, start, end, key]);
+}
+
+type Motion = ReturnType<typeof useCollapse>;
+
+/** "Tue", "Today", "Tmrw": short enough for a row's label. */
+const shortDay = (g: GameCardView) => {
+  const d = g.dayLabel.replace(/,.*/, "");
+  return d === "Tomorrow" ? "Tmrw" : d === "Today" || d === "Tonight" ? d : d.slice(0, 3);
+};
+
+/**
+ * Games you've scrolled past, as slim rows that collect under the header one below the other, newest last.
+ * Tap a row to open the game.
+ */
+function PassedRows({ games, motion, top }: { games: GameCardView[]; motion: Motion; top: number }) {
+  const { c } = useTheme();
+  if (!games.length) return null;
+  return (
+    <View pointerEvents="box-none" style={{ position: "absolute", top: top - 6, left: 16, right: 16, zIndex: 11 }}>
+      {games.map((g, i) => {
+        const r = motion.rise(i, 24);
+        return (
+          <Animated.View
+            key={g.id}
+            pointerEvents={i < motion.rowsIn ? "auto" : "none"}
+            style={{ position: "absolute", top: i * ROW_STEP, left: 0, right: 0, opacity: r.opacity, transform: [{ translateY: r.translateY }] }}
+          >
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`${g.title}, ${g.when}`}
+              onPress={() => router.push(`/g/${g.code}`)}
+              style={{
+                height: ROW_HEIGHT,
+                borderRadius: 12,
+                paddingHorizontal: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                backgroundColor: c.surface,
+                borderWidth: 1,
+                borderColor: c.line,
+                shadowColor: "#000",
+                shadowOpacity: 0.1,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+              }}
+            >
+              <Mono size={10.5} color={c.pitch}>
+                {shortDay(g)} {g.time}
+                {g.ampm.slice(0, 1).toLowerCase()}
+              </Mono>
+              <Body size={13.5} weight="semibold" numberOfLines={1} style={{ flex: 1 }}>
+                {g.title}
+              </Body>
+              {g.my ? <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: c.lime }} /> : null}
+            </Pressable>
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+}
+
+const MAX_ROWS = 6;
+const ROW_HEIGHT = 36;
+/** Each row sits this far below the one before it. */
+const ROW_STEP = 44;
+
+type RsvpHandlers = { onDropped: (game: NextUpView) => void; onRejoined: () => void };
+
+/**
+ * "You're in" doubles as the switch: one tap drops you (no confirm, by design), and the pill turns into "RSVP now"
+ * so the same tap gets you back in. Only shown for games you're in or just dropped.
+ */
+function RsvpPill({ game, onDropped, onRejoined, size = "lg" }: RsvpHandlers & { game: NextUpView; size?: "lg" | "sm" }) {
+  const { c } = useTheme();
+  const act = useGameAction(game.code);
+  const inGame = game.my?.status === "in";
+  const toggle = async () => {
+    try {
+      if (inGame) {
+        await act.mutateAsync({ action: "leave" });
+        onDropped({ ...game, my: null, note: "You're out. Changed your mind? Tap RSVP now." });
+      } else {
+        await act.mutateAsync({ action: "join" });
+        onRejoined();
+      }
+      void Haptics.selectionAsync().catch(() => undefined);
+    } catch (err) {
+      Alert.alert("Couldn't do that", (err as Error).message);
+    }
+  };
+  const lg = size === "lg";
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={inGame ? "You're in. Tap to drop out." : "RSVP now"}
+      disabled={act.isPending}
+      onPress={() => void toggle()}
+      style={{
+        height: lg ? 44 : 30,
+        paddingHorizontal: lg ? 20 : 12,
+        borderRadius: lg ? 22 : 15,
+        backgroundColor: inGame ? c.lime : "transparent",
+        borderWidth: inGame ? 0 : 1.5,
+        borderColor: c.lime,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        opacity: act.isPending ? 0.6 : 1,
+      }}
+    >
+      {inGame && lg && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.limeInk }} />}
+      <Body size={lg ? 16 : 12.5} weight="semibold" color={inGame ? c.limeInk : c.lime}>
+        {inGame ? "You're in" : "RSVP now"}
+      </Body>
+    </Pressable>
+  );
+}
+
+function NextUp({ game, ...rsvp }: RsvpHandlers & { game: NextUpView }) {
   const { c } = useTheme();
   const left = useCountdown(game.my?.status === "offered" ? game.offerExpiresAt : null);
   const [count, of] = game.going.split("/");
@@ -134,14 +369,7 @@ function NextUp({ game }: { game: NextUpView }) {
         {game.note}
       </Body>
       <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, marginTop: 22 }}>
-        {game.my?.status === "in" && (
-          <View style={{ height: 44, paddingHorizontal: 20, borderRadius: 22, backgroundColor: c.lime, flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.limeInk }} />
-            <Body weight="semibold" color={c.limeInk}>
-              You&apos;re in
-            </Body>
-          </View>
-        )}
+        {(game.my?.status === "in" || !game.my) && <RsvpPill game={game} {...rsvp} />}
         {game.my?.status === "offered" && <Button title={left ? `Claim spot · ${left}` : "Claim spot"} variant="lime" onPress={() => router.push(`/g/${game.code}`)} />}
         {game.my?.status === "waitlist" && game.position ? (
           <View style={{ height: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center" }}>
@@ -157,6 +385,55 @@ function NextUp({ game }: { game: NextUpView }) {
           <ChevronRight size={16} color="rgba(255,255,255,0.8)" />
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+/** The next game, shrunk to one row in the header once its panel scrolls away. */
+function PinnedNext({ game, ...rsvp }: RsvpHandlers & { game: NextUpView }) {
+  const { c } = useTheme();
+  const status =
+    game.my?.status === "offered" ? { label: "Claim spot", bg: c.lime, fg: c.limeInk }
+    : game.my?.status === "waitlist" && game.position ? { label: `#${game.position} in line`, bg: "rgba(255,255,255,0.12)", fg: "#FFFFFF" }
+    : null;
+  // The row opens the game; the RSVP pill sits beside it rather than inside, so the two taps never overlap.
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, paddingRight: 4 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Next up: ${game.title}, ${game.whenLabel} ${game.time} ${game.ampm}`}
+        onPress={() => router.push(`/g/${game.code}`)}
+        style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 6, paddingLeft: 4 }}
+      >
+        <View>
+          <Mono size={10} color={c.lime}>
+            {game.whenLabel}
+          </Mono>
+          <Disp size={22} color="#FFFFFF">
+            {game.time}
+            <Disp size={13} color="rgba(255,255,255,0.5)"> {game.ampm}</Disp>
+          </Disp>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Body size={14.5} weight="semibold" color="#FFFFFF" numberOfLines={1}>
+            {game.title}
+          </Body>
+          <Body size={12.5} color="rgba(255,255,255,0.6)" numberOfLines={1}>
+            {game.going} going · {game.locationName}
+          </Body>
+        </View>
+      </Pressable>
+      {game.my?.status === "in" || !game.my ? (
+        <RsvpPill game={game} size="sm" {...rsvp} />
+      ) : status ? (
+        <View style={{ height: 30, paddingHorizontal: 12, borderRadius: 15, backgroundColor: status.bg, justifyContent: "center" }}>
+          <Body size={12.5} weight="semibold" color={status.fg}>
+            {status.label}
+          </Body>
+        </View>
+      ) : (
+        <ChevronRight size={16} color="rgba(255,255,255,0.7)" />
+      )}
     </View>
   );
 }

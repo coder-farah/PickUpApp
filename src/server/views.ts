@@ -133,6 +133,7 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
       ...card,
       status: g.status,
       notes: g.notes,
+      durationMinutes: Math.round((g.endsAt.getTime() - g.startsAt.getTime()) / 60_000),
       minPlayers: g.minPlayers,
       claimMinutes: g.claimMinutes,
       guestsAllowed: g.guestsAllowed,
@@ -151,6 +152,7 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
       mapsUrl: `https://maps.apple.com/?q=${encodeURIComponent([g.locationName, g.locationAddress].filter(Boolean).join(", "))}`,
     },
     host: face({ id: p.host.id, name: p.host.name, v: p.host.v }),
+    cohosts: p.cohosts.map(face),
     playing: p.playing.map(roster),
     queue: g.capacity === null ? [] : p.queue.map(roster),
     me: p.myMain
@@ -163,6 +165,7 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
         }
       : null,
     canManage: p.canManage,
+    canHandOff: p.canHandOff,
     viewerIsMember: p.viewerIsMember,
   };
 }

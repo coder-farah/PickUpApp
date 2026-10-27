@@ -1,17 +1,19 @@
 import { useState } from "react";
-import { Alert, Linking, Pressable, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { API_URL, SUPPORT_EMAIL } from "@/api/client";
-import { useCrewAction, useGame, useGameAction, type GameAction } from "@/api/hooks";
-import type { GameDetailView, RosterView } from "@/api/types";
+import { API_URL, SUPPORT_EMAIL, api } from "@/api/client";
+import { keys, useCrewAction, useGame, useGameAction, type GameAction } from "@/api/hooks";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CohostCandidatesView, GameDetailView, RosterView } from "@/api/types";
 import { useCountdown } from "@/lib/countdown";
 import { shareLink } from "@/lib/share";
+import { openDirections } from "@/lib/directions";
 import { Avatar, Faces } from "@/components/Avatar";
 import { Check, ChevronDown, MapPin, Repeat, UserPlus, X } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
 import { Sheet } from "@/components/Sheet";
-import { TopBar } from "@/components/TopBar";
+import { TopBar, useScrolled } from "@/components/TopBar";
 import { Badge, Body, Button, Card, Disp, ErrorView, Input, Loading, Mono, Notice, Page, SectionTitle } from "@/components/ui";
 import { useTheme } from "@/theme";
 
@@ -29,6 +31,7 @@ function whoLine(names: string[]) {
 export default function GameScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const { c } = useTheme();
+  const { scrolled, onScroll } = useScrolled();
   const { data, isLoading, error, refetch, isRefetching } = useGame(code);
   const act = useGameAction(code);
   const [notice, setNotice] = useState<string | null>(null);
@@ -53,8 +56,8 @@ export default function GameScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
-      <TopBar night back onShare={() => void shareLink(g.shareText.replace(/\nRSVP here: .*$/, "\nRSVP here:"), g.shareUrl)} />
-      <Page refreshing={isRefetching} onRefresh={() => void refetch()} tabBar={false}>
+      <TopBar night back onShare={() => void shareLink(g.shareText.replace(/\nRSVP here: .*$/, "\nRSVP here:"), g.shareUrl)} glass={scrolled} />
+      <Page refreshing={isRefetching} onRefresh={() => void refetch()} tabBar={false} onScroll={onScroll}>
         <NightHero fade={100}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Mono size={11.5} color={c.lime}>
@@ -104,16 +107,22 @@ export default function GameScreen() {
           </Card>
 
           <View style={{ gap: 12 }}>
-            <Pressable onPress={() => void Linking.openURL(g.mapsUrl)} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-              <MapPin size={16} color={c.muted} />
-              <Body style={{ flexShrink: 1 }} numberOfLines={1}>
-                <Body style={{ textDecorationLine: "underline" }}>{g.locationName}</Body>
-                {g.locationAddress ? <Body color={c.muted}> · {g.locationAddress}</Body> : null}
-              </Body>
-            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <Pressable accessibilityRole="link" onPress={() => openDirections(g)} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}>
+                <MapPin size={16} color={c.muted} />
+                <Body style={{ flexShrink: 1 }} numberOfLines={2}>
+                  <Body style={{ textDecorationLine: "underline" }}>{g.locationName}</Body>
+                  {g.locationAddress ? <Body color={c.muted}> · {g.locationAddress}</Body> : null}
+                </Body>
+              </Pressable>
+              <Button title="Directions" size="sm" variant="secondary" onPress={() => openDirections(g)} />
+            </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Avatar name={data.host.name} seed={data.host.id} photo={data.host.photo} size={18} />
-              <Body color={c.ink2}>Hosted by {data.host.name}</Body>
+              <Body color={c.ink2} style={{ flex: 1 }}>
+                Hosted by {data.host.name}
+                {data.cohosts.length ? ` with ${listNames(data.cohosts.map((h) => h.name))}` : ""}
+              </Body>
             </View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Check size={16} color={g.inCount >= g.minPlayers ? c.pitch : c.muted} />
@@ -180,6 +189,104 @@ export default function GameScreen() {
           </Body>
         </View>
       </Page>
+    </View>
+  );
+}
+
+const listNames = (names: string[]) => (names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`);
+
+/**
+ * Co-hosts can edit the game, manage the list and call it off. The host can also hand the game over, which is how you
+ * post a game for someone else: post it, add them here, then make them the host.
+ */
+function Cohosts({ data }: { data: GameDetailView }) {
+  const { c } = useTheme();
+  const qc = useQueryClient();
+  const code = data.game.code;
+  const [picking, setPicking] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const candidates = useQuery({
+    queryKey: ["cohost-candidates", code],
+    queryFn: () => api<CohostCandidatesView>(`/api/v1/games/${encodeURIComponent(code)}/cohosts`),
+    enabled: picking,
+  });
+
+  async function send(path: "cohosts" | "host", userId: string, method: "POST" | "DELETE", done?: string) {
+    setBusy(userId);
+    try {
+      const fresh = await api<GameDetailView>(`/api/v1/games/${encodeURIComponent(code)}/${path}`, { method, body: { userId } });
+      qc.setQueryData(keys.game(code), fresh);
+      void qc.invalidateQueries({ queryKey: ["cohost-candidates", code] });
+      void qc.invalidateQueries({ queryKey: keys.home });
+      setPicking(false);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      if (done) Alert.alert(done);
+    } catch (err) {
+      Alert.alert("Couldn't do that", (err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const handOff = (h: { id: string; name: string }) =>
+    Alert.alert(`Make ${h.name} the host?`, "They'll run the game and get its updates. You stay on as a co-host.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Make host", onPress: () => void send("host", h.id, "POST", `${h.name} is hosting now.`) },
+    ]);
+
+  return (
+    <View style={{ gap: 8 }}>
+      <Body weight="medium" size={14}>
+        Co-hosts
+      </Body>
+      {data.cohosts.map((h) => (
+        <View key={h.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+          <Avatar name={h.name} seed={h.id} photo={h.photo} size={28} />
+          <Body size={14.5} style={{ flex: 1 }} numberOfLines={1}>
+            {h.name}
+          </Body>
+          {data.canHandOff && <Button title="Make host" size="sm" variant="secondary" loading={busy === h.id} onPress={() => handOff(h)} />}
+          <Pressable accessibilityLabel={`Remove ${h.name} as co-host`} onPress={() => void send("cohosts", h.id, "DELETE")} hitSlop={8} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
+            <X size={16} color={c.muted} />
+          </Pressable>
+        </View>
+      ))}
+      <Body size={12.5} color={c.muted}>
+        {data.cohosts.length ? "They can edit the game, manage the list and call it off." : "Share the work: a co-host can edit the game, manage the list and call it off."}
+        {data.canHandOff ? " Posting for someone else? Add them, then make them the host." : ""}
+      </Body>
+      <Button title="Add a co-host" variant="secondary" onPress={() => setPicking(true)} />
+      <Sheet open={picking} onClose={() => setPicking(false)} title="Add a co-host">
+        <Body size={14} color={c.muted} style={{ marginTop: -8 }}>
+          People on this game, your crew, and players you've played with.
+        </Body>
+        {candidates.isLoading ? (
+          <Loading />
+        ) : !candidates.data?.people.length ? (
+          <Body color={c.muted}>No one to add yet. Once people join this game or play with you, they'll show up here.</Body>
+        ) : (
+          <ScrollView style={{ maxHeight: 360 }}>
+            {candidates.data.people.map((p) => (
+              <Pressable
+                key={p.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Make ${p.name} a co-host`}
+                disabled={!!busy}
+                onPress={() => void send("cohosts", p.id, "POST")}
+                style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: c.line, opacity: busy && busy !== p.id ? 0.5 : 1 }}
+              >
+                <Avatar name={p.name} seed={p.id} photo={p.photo} size={34} />
+                <Body weight="medium" style={{ flex: 1 }} numberOfLines={1}>
+                  {p.name}
+                </Body>
+                <Mono size={10.5} color={c.pitch}>
+                  {busy === p.id ? "Adding…" : "Add"}
+                </Mono>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+      </Sheet>
     </View>
   );
 }
@@ -441,6 +548,7 @@ function HostTools({ data, run, busy }: { data: GameDetailView; run: Run; busy: 
   return (
     <Card style={{ gap: 14 }}>
       <Mono eyebrow>Host tools</Mono>
+      <Button title="Edit time, place or details" variant="secondary" onPress={() => router.push(`/edit/${data.game.code}`)} />
       <View style={{ gap: 8 }}>
         <Body weight="medium" size={14}>
           Cap
@@ -453,6 +561,7 @@ function HostTools({ data, run, busy }: { data: GameDetailView; run: Run; busy: 
           Leave it empty to let everyone in. Raising or removing it moves people up from the waitlist.
         </Body>
       </View>
+      <Cohosts data={data} />
       {cancelling ? (
         <View style={{ gap: 8, padding: 12, borderRadius: 16, backgroundColor: c.surface2 }}>
           <Input value={reason} onChangeText={setReason} placeholder="Reason (optional), like field closed" maxLength={120} />

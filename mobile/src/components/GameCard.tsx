@@ -1,5 +1,7 @@
-import { View } from "react-native";
+import { Alert, Pressable, View } from "react-native";
 import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { useGameAction } from "@/api/hooks";
 import { Repeat } from "./icons";
 import { Badge, Body, Card, Disp, Mono } from "./ui";
 import { useTheme } from "@/theme";
@@ -48,6 +50,8 @@ export function GameCard({ game, showDay }: { game: GameCardView; showDay?: bool
           </View>
           {game.my ? (
             <Badge tone={game.my.tone} label={game.my.label} />
+          ) : s.key === "open" || s.key === "on" || s.key === "full" ? (
+            <RsvpChip game={game} />
           ) : s.key === "cancelled" || s.key === "live" ? (
             <Badge tone={s.tone} label={s.label} />
           ) : game.soon ? (
@@ -58,6 +62,35 @@ export function GameCard({ game, showDay }: { game: GameCardView; showDay?: bool
         </View>
       </View>
     </Card>
+  );
+}
+
+/** One tap to get on a game from any list. A full game puts you on its waitlist, and the chip says so first. */
+function RsvpChip({ game }: { game: GameCardView }) {
+  const { c } = useTheme();
+  const act = useGameAction(game.code);
+  const full = game.state.key === "full" || game.room === "Full";
+  const join = async () => {
+    try {
+      await act.mutateAsync({ action: "join" });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    } catch (err) {
+      Alert.alert("Couldn't RSVP", (err as Error).message);
+    }
+  };
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={full ? `Join the waitlist for ${game.title}` : `RSVP to ${game.title}`}
+      disabled={act.isPending}
+      onPress={() => void join()}
+      hitSlop={8}
+      style={{ height: 28, paddingHorizontal: 12, borderRadius: 14, justifyContent: "center", backgroundColor: full ? c.surface2 : c.night, opacity: act.isPending ? 0.6 : 1 }}
+    >
+      <Mono size={10.5} color={full ? c.ink2 : c.lime}>
+        {act.isPending ? "…" : full ? "Waitlist" : "RSVP"}
+      </Mono>
+    </Pressable>
   );
 }
 

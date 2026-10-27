@@ -46,7 +46,8 @@ export async function spotCounts(tx: Tx | typeof db, gameId: string) {
   return { inCount, offered, waitlist: get("waitlist"), held: inCount + offered };
 }
 
-export async function isManager(tx: Tx | typeof db, game: Pick<Game, "hostId" | "groupId">, userId: string) {
+/** The host, or an organizer of the game's crew. Only they can hand the game to someone else. */
+export async function isOwner(tx: Tx | typeof db, game: Pick<Game, "hostId" | "groupId">, userId: string) {
   if (game.hostId === userId) return true;
   if (!game.groupId) return false;
   const [m] = await tx
@@ -54,6 +55,16 @@ export async function isManager(tx: Tx | typeof db, game: Pick<Game, "hostId" | 
     .from(t.groupMembers)
     .where(and(eq(t.groupMembers.groupId, game.groupId), eq(t.groupMembers.userId, userId)));
   return m?.role === "organizer";
+}
+
+/** Anyone who can run the game: its owner (above) or a co-host. */
+export async function isManager(tx: Tx | typeof db, game: Pick<Game, "id" | "hostId" | "groupId">, userId: string) {
+  if (await isOwner(tx, game, userId)) return true;
+  const [c] = await tx
+    .select({ userId: t.gameCohosts.userId })
+    .from(t.gameCohosts)
+    .where(and(eq(t.gameCohosts.gameId, game.id), eq(t.gameCohosts.userId, userId)));
+  return !!c;
 }
 
 function assertRsvpOpen(g: Game, now: Date) {

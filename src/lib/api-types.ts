@@ -11,6 +11,9 @@ export type SportKey = "soccer" | "basketball" | "volleyball" | "ultimate" | "ot
 
 export type FaceView = { id: string; name: string; photo: string | null };
 
+/** People a host can make a co-host: this game's list, its crew, and recent teammates. */
+export type CohostCandidatesView = { people: FaceView[] };
+
 export type GameCardView = {
   id: string;
   code: string;
@@ -66,6 +69,8 @@ export type GameDetailView = {
   game: GameCardView & {
     status: "scheduled" | "open" | "on" | "cancelled" | "completed";
     notes: string | null;
+    /** Minutes from kickoff to the end */
+    durationMinutes: number;
     minPlayers: number;
     claimMinutes: number;
     guestsAllowed: boolean;
@@ -91,6 +96,8 @@ export type GameDetailView = {
     mapsUrl: string;
   };
   host: FaceView;
+  /** People who run the game with the host */
+  cohosts: FaceView[];
   playing: RosterView[];
   /** Waitlist in order. Empty for games without a cap. */
   queue: RosterView[];
@@ -102,7 +109,10 @@ export type GameDetailView = {
     offerExpiresAt: string | null;
     guests: { spotId: string; name: string; status: SpotStatus }[];
   } | null;
+  /** Host, co-host or crew organizer: can edit, manage the list and call it off */
   canManage: boolean;
+  /** Host or crew organizer: can also hand the game to someone else */
+  canHandOff: boolean;
   viewerIsMember: boolean;
 };
 

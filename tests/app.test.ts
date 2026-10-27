@@ -5,7 +5,8 @@ import { db, t } from "@/server/db";
 import { join } from "@/server/engine";
 import { getGamePage, getHome } from "@/server/queries";
 import { deleteAccount } from "@/server/account";
-import { createGame } from "@/server/hosting";
+import { createGame, editGame } from "@/server/hosting";
+import { addCohost, cohostCandidates, makeHost } from "@/server/cohosts";
 import { joinCrew, leaveCrew } from "@/server/crews";
 import { dispatchPending, queueNotifications } from "@/server/notify";
 import { appleClientSecret } from "@/server/apple";
@@ -93,6 +94,66 @@ describe("hosting from the app", () => {
     await expect(
       createGame(host, { title: "Old game", date: "2020-01-01", time: "10:00", locationName: "X", rules: { capacity: 10, minPlayers: 6, claimMinutes: 30, guestsAllowed: false } }),
     ).rejects.toThrow(/future/);
+  });
+
+  it("lets the host move a game and tells everyone who's in", async () => {
+    const host = await makeUser();
+    const { code } = await createGame(host, {
+      title: "Sunday Kezar",
+      date: "2030-06-02",
+      time: "10:00",
+      locationName: "Kezar Stadium",
+      rules: { capacity: 10, minPlayers: 6, claimMinutes: 30, guestsAllowed: true },
+    });
+    const [g] = await db.select().from(t.games).where(eq(t.games.code, code));
+    const p = await makeUser();
+    await join(g.id, p.id);
+    const stranger = await makeUser();
+    const edit = { title: "Sunday Kezar", date: "2030-06-02", time: "11:30", durationMinutes: 120, locationName: "Kezar Stadium", rules: { capacity: 12, minPlayers: 6, claimMinutes: 30, guestsAllowed: true } };
+    await expect(editGame(stranger, code, edit)).rejects.toThrow(/Only the host/);
+
+    expect(await editGame(host, code, edit)).toMatchObject({ notified: true });
+    const [after] = await db.select().from(t.games).where(eq(t.games.id, g.id));
+    expect(after.endsAt.getTime() - after.startsAt.getTime()).toBe(120 * 60_000);
+    expect(after.startsAt.getTime() - g.startsAt.getTime()).toBe(90 * 60_000);
+    expect(after.capacity).toBe(12);
+    const sent = await db.select().from(t.notifications).where(eq(t.notifications.gameId, g.id));
+    const changed = sent.filter((n) => n.kind === "game_changed");
+    expect(changed.map((n) => n.userId)).toEqual([p.id]);
+    expect(changed[0].title).toBe("New time: Sunday Kezar");
+
+    // Only the notes changed: nobody is pinged.
+    expect(await editGame(host, code, { ...edit, notes: "Bring a dark shirt" })).toMatchObject({ notified: false });
+  });
+
+  it("lets a co-host run the game and the host hand it over", async () => {
+    const host = await makeUser("Hana Host");
+    const { code } = await createGame(host, {
+      title: "Sunday Kezar",
+      date: "2030-06-02",
+      time: "10:00",
+      locationName: "Kezar Stadium",
+      rules: { capacity: 10, minPlayers: 6, claimMinutes: 30, guestsAllowed: true },
+    });
+    const [g] = await db.select().from(t.games).where(eq(t.games.code, code));
+    const co = await makeUser("Cole Cohost");
+    await join(g.id, co.id);
+    const edit = { title: "Sunday Kezar", date: "2030-06-02", time: "10:00", durationMinutes: 90, locationName: "Kezar Stadium", notes: "Bibs provided", rules: { capacity: 10, minPlayers: 6, claimMinutes: 30, guestsAllowed: true } };
+
+    await expect(editGame(co, code, edit)).rejects.toThrow(/Only the host/);
+    expect((await cohostCandidates(host, code)).map((p) => p.id)).toContain(co.id);
+    await addCohost(host, code, co.id);
+    await editGame(co, code, edit);
+    expect((await getGamePage(code, co.id))?.canManage).toBe(true);
+    expect((await getGamePage(code, co.id))?.canHandOff).toBe(false);
+    await expect(makeHost(co, code, co.id)).rejects.toThrow(/Only the host/);
+
+    await makeHost(host, code, co.id);
+    const page = await getGamePage(code, host.id);
+    expect(page?.game.hostId).toBe(co.id);
+    expect(page?.cohosts.map((c) => c.id)).toEqual([host.id]);
+    const sent = await db.select().from(t.notifications).where(eq(t.notifications.userId, co.id));
+    expect(sent.map((n) => n.kind).sort()).toEqual(["cohost_added", "host_handoff"]);
   });
 
   it("keeps invite-only crews closed without the code", async () => {

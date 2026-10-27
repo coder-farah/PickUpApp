@@ -280,6 +280,11 @@ export async function getManagedGroups(userId: string) {
     .orderBy(asc(t.groups.name));
 }
 
+/** The last game this person posted, so the host form can start from it. */
+export async function getLastHosted(userId: string) {
+  const [g] = await db.select().from(t.games).where(eq(t.games.hostId, userId)).orderBy(desc(t.games.createdAt)).limit(1);
+  return g ?? null;
+}
 
 /** 1-based place in line, or null when the player isn't waiting. */
 export async function waitlistPosition(gameId: string, userId: string) {

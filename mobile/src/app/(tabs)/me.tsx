@@ -44,7 +44,7 @@ export default function MeScreen() {
     void pushStatus().then(setPush);
   }, []);
 
-  if (!data || !draft) return <Loading />;
+  if (!data || !draft) return <Loading variant="page" />;
   const u = data.user;
 
   async function save(extra: { smsEnabled?: boolean } = {}) {
@@ -90,7 +90,7 @@ export default function MeScreen() {
       <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
         <Avatar name={u.name} seed={u.id} photo={u.photo} size={56} />
         <View style={{ flex: 1 }}>
-          <Disp size={32} numberOfLines={1}>
+          <Disp size={32} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
             {u.name ?? "Player"}
           </Disp>
           <Mono size={11.5} style={{ marginTop: 2 }}>
@@ -102,20 +102,23 @@ export default function MeScreen() {
 
       <Card style={{ flexDirection: "row", paddingVertical: 14 }}>
         {[
-          { label: "Played", value: data.stats.played },
+          { label: "Games played", value: data.stats.played },
           { label: "Hosted", value: data.stats.hosted },
-          { label: "Late drops", value: data.stats.lateDrops, warn: data.stats.lateDrops > 2 },
         ].map((s, i) => (
           <View key={s.label} style={{ flex: 1, alignItems: "center", gap: 2, borderLeftWidth: i ? 1 : 0, borderColor: c.line }}>
-            <Disp size={28} color={s.warn ? c.signal : c.ink}>
-              {s.value}
-            </Disp>
+            <Disp size={34}>{s.value}</Disp>
             <Body size={12.5} color={c.muted}>
               {s.label}
             </Body>
           </View>
         ))}
       </Card>
+      {/* Reliability stays a quiet line, not a headline number. */}
+      {data.stats.lateDrops > 0 && (
+        <Body size={13} color={data.stats.lateDrops > 2 ? c.signal : c.muted} style={{ marginTop: -12, textAlign: "center" }}>
+          {data.stats.lateDrops} late drop{data.stats.lateDrops === 1 ? "" : "s"}. Dropping before last call doesn&apos;t count.
+        </Body>
+      )}
 
       {editing && (
         <Group title="Profile">

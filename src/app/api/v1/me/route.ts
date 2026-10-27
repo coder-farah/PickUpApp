@@ -5,18 +5,33 @@ import { getCurrentUser } from "@/server/auth";
 import { deleteAccount } from "@/server/account";
 import { db, t } from "@/server/db";
 import { saveProfile } from "@/server/profile";
-import { getManagedGroups, getPlayerStats, unreadCount } from "@/server/queries";
+import { getLastHosted, getManagedGroups, getPlayerStats, unreadCount } from "@/server/queries";
 import { userView } from "@/server/views";
 import type { MeView } from "@/lib/api-types";
 
 async function meView(userId: string): Promise<MeView> {
   const [user] = await db.select().from(t.users).where(eq(t.users.id, userId));
-  const [stats, managed, unread] = await Promise.all([getPlayerStats(userId), getManagedGroups(userId), unreadCount(userId)]);
+  const [stats, managed, unread, last] = await Promise.all([getPlayerStats(userId), getManagedGroups(userId), unreadCount(userId), getLastHosted(userId)]);
   return {
     user: userView(user),
     stats,
     managedCrews: managed.map((g) => ({ id: g.id, name: g.name, slug: g.slug })),
     unread,
+    lastHosted: last && {
+      code: last.code,
+      title: last.title,
+      weekly: !!last.scheduleId,
+      startsAt: last.startsAt.toISOString(),
+      durationMinutes: Math.round((last.endsAt.getTime() - last.startsAt.getTime()) / 60_000),
+      locationName: last.locationName,
+      locationAddress: last.locationAddress,
+      notes: last.notes,
+      capacity: last.capacity,
+      minPlayers: last.minPlayers,
+      claimMinutes: last.claimMinutes,
+      guestsAllowed: last.guestsAllowed,
+      visibility: last.visibility,
+    },
   };
 }
 

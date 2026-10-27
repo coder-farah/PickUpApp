@@ -203,5 +203,5 @@ export function crewCardView(c: {
 }
 
 export function inboxItemView(n: Notification, now = new Date()): InboxItemView {
-  return { id: n.id, title: n.title, body: n.body, url: n.url, read: !!n.readAt, ago: fmtRelative(n.createdAt, now) };
+  return { id: n.id, kind: n.kind, title: n.title, body: n.body, url: n.url, read: !!n.readAt, ago: fmtRelative(n.createdAt, now), at: n.createdAt.toISOString() };
 }

@@ -16,7 +16,7 @@ export default function CrewScreen() {
   const { scrolled, onScroll } = useScrolled();
   const { data, isLoading, error, refetch, isRefetching } = useCrew(slug);
   const act = useCrewAction(slug);
-  if (isLoading) return <Loading />;
+  if (isLoading) return <Loading variant="hero" />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load this crew."} onRetry={() => void refetch()} />;
   const crew = data.crew;
 

@@ -21,6 +21,10 @@ const config: ExpoConfig = {
   icon: "./assets/icon.png",
   userInterfaceStyle: "automatic",
   newArchEnabled: true,
+  // Over-the-air updates: JavaScript-only changes ship with `eas update` (the "App update" workflow) instead of a new
+  // build. An update only reaches builds with the same app version, so bump `version` whenever a native module changes.
+  runtimeVersion: { policy: "appVersion" },
+  updates: { url: `https://u.expo.dev/${EAS_PROJECT_ID}`, enabled: storeBuild, checkAutomatically: "ON_LOAD", fallbackToCacheTimeout: 0 },
   ios: {
     supportsTablet: false,
     bundleIdentifier: process.env.IOS_BUNDLE_ID ?? "app.pitchin.ios",
@@ -57,6 +61,8 @@ const config: ExpoConfig = {
     ["expo-location", { locationWhenInUsePermission: "Pitchin uses your location only when you tap Use my location, to find games near you." }],
     "expo-font",
     "@react-native-community/datetimepicker",
+    ["expo-calendar", { calendarPermission: "Pitchin adds a game to your calendar only when you tap Add to calendar.", remindersPermission: false }],
+    "expo-updates",
     ["expo-build-properties", { ios: { deploymentTarget: "15.1" } }],
   ],
   experiments: { typedRoutes: false },

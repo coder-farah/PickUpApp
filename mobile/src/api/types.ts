@@ -166,6 +166,25 @@ export type MeView = {
   stats: { played: number; hosted: number; lateDrops: number };
   managedCrews: { id: string; name: string; slug: string }[];
   unread: number;
+  /** The last game you posted: the host form starts from its field, kickoff time, length and rules. */
+  lastHosted: HostDraftView | null;
+};
+
+/** A game's settings, to post another one like it. */
+export type HostDraftView = {
+  code: string;
+  title: string;
+  weekly: boolean;
+  startsAt: string;
+  durationMinutes: number;
+  locationName: string;
+  locationAddress: string | null;
+  notes: string | null;
+  capacity: number | null;
+  minPlayers: number;
+  claimMinutes: number;
+  guestsAllowed: boolean;
+  visibility: "public" | "private";
 };
 
 /** The one game the Home hero shows: a spot held for you beats a game you're in, which beats a waitlist. */
@@ -196,7 +215,8 @@ export type DiscoverView = {
   crews: CrewCardView[];
 };
 
-export type InboxItemView = { id: string; title: string; body: string; url: string | null; read: boolean; ago: string };
+/** `kind` picks the icon; `at` (ISO) lets the app group by day. */
+export type InboxItemView = { id: string; kind: string; title: string; body: string; url: string | null; read: boolean; ago: string; at: string };
 export type InboxView = { items: InboxItemView[]; unread: number };
 
 export type UsernameCheckView = { ok: boolean; username: string; message: string; suggestion?: string };

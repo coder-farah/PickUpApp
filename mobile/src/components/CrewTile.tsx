@@ -6,8 +6,6 @@ import { initials } from "./Avatar";
 import { Users } from "./icons";
 import { Body, Card, Disp, Mono } from "./ui";
 
-const SPORT = { soccer: "Soccer", basketball: "Basketball", volleyball: "Volleyball", ultimate: "Ultimate", other: "Other" } as const;
-
 export function CrewCrest({ name, size = 48 }: { name: string; size?: number }) {
   const { c } = useTheme();
   return (
@@ -30,7 +28,7 @@ export function CrewTile({ crew }: { crew: CrewCardView }) {
           {crew.name}
         </Body>
         <Body size={12.5} color={c.muted} numberOfLines={1}>
-          {crew.role === "organizer" ? "Organizer" : SPORT[crew.sport]}
+          {crew.role === "organizer" ? "You organize" : crew.schedule || "Weekly games"}
           {crew.area ? ` · ${crew.area}` : ""}
         </Body>
       </View>
@@ -49,7 +47,7 @@ export function CrewRow({ crew }: { crew: CrewCardView }) {
           {crew.name}
         </Body>
         <Body size={13} color={c.muted} numberOfLines={1}>
-          {crew.schedule || SPORT[crew.sport]}
+          {crew.schedule || "Weekly games"}
         </Body>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
           <Users size={12} color={c.muted} />

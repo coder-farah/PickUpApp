@@ -62,9 +62,7 @@ export default function ExploreScreen() {
       </ScrollView>
 
       {isLoading || !data ? (
-        <View style={{ height: 200 }}>
-          <Loading />
-        </View>
+        <Loading variant="cards" />
       ) : view === "map" ? (
         <View style={{ gap: 16 }}>
           <RadiusMap games={data.games} center={data.place} miles={data.miles} />

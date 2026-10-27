@@ -5,7 +5,8 @@ import { env } from "./env";
 /** Lock-screen notifications for the iPhone app, through Expo's push service (it holds the APNs key). */
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
-export type PushMessage = { to: string; title: string; body: string; url?: string | null; badge?: number };
+/** `categoryId` names the set of buttons the app shows on the notification (see mobile/src/lib/push.ts). */
+export type PushMessage = { to: string; title: string; body: string; url?: string | null; badge?: number; categoryId?: string };
 
 export const isExpoToken = (token: string) => /^Expo(nent)?PushToken\[[^\]]+\]$/.test(token);
 
@@ -32,6 +33,7 @@ export async function sendPush(messages: PushMessage[]) {
             body: m.body,
             sound: "default",
             badge: m.badge,
+            ...(m.categoryId ? { categoryId: m.categoryId } : {}),
             data: m.url ? { url: m.url } : {},
           })),
         ),

@@ -3,9 +3,10 @@ import { eq } from "drizzle-orm";
 import { generateKeyPairSync, verify } from "node:crypto";
 import { db, t } from "@/server/db";
 import { join } from "@/server/engine";
-import { getGamePage, getHome } from "@/server/queries";
+import { getGamePage, getHome, getLastHosted } from "@/server/queries";
 import { deleteAccount } from "@/server/account";
-import { createGame, editGame } from "@/server/hosting";
+import { createCrew, createGame, editGame } from "@/server/hosting";
+import { gameIcs } from "@/lib/ics";
 import { addCohost, cohostCandidates, makeHost } from "@/server/cohosts";
 import { joinCrew, leaveCrew } from "@/server/crews";
 import { dispatchPending, queueNotifications } from "@/server/notify";
@@ -70,7 +71,20 @@ describe("pushes", () => {
       { userId: web.id, kind: "promoted", title: "You're in", body: "A spot opened.", sms: true },
     ]);
     await dispatchPending();
-    expect(pushed).toEqual([expect.objectContaining({ to: "ExponentPushToken[abc]", title: "You're in", badge: 1 })]);
+    expect(pushed).toEqual([expect.objectContaining({ to: "ExponentPushToken[abc]", title: "You're in", badge: 1, categoryId: "playing" })]);
+  });
+
+  it("puts I'm in on a game that opened and nothing on a cancellation", async () => {
+    pushed.length = 0;
+    const p = await makeUser();
+    await db.insert(t.pushTokens).values({ token: "ExponentPushToken[def]", userId: p.id, platform: "ios" });
+    await queueNotifications(db, [
+      { userId: p.id, kind: "rsvps_open", title: "Open", body: "Tap to get in.", sms: true },
+      { userId: p.id, kind: "game_cancelled", title: "Off", body: "Field closed.", sms: true },
+    ]);
+    await dispatchPending();
+    const byTitle = Object.fromEntries((pushed as { title: string; categoryId?: string }[]).map((m) => [m.title, m.categoryId]));
+    expect(byTitle).toEqual({ Open: "join", Off: undefined });
   });
 });
 
@@ -154,6 +168,40 @@ describe("hosting from the app", () => {
     expect(page?.cohosts.map((c) => c.id)).toEqual([host.id]);
     const sent = await db.select().from(t.notifications).where(eq(t.notifications.userId, co.id));
     expect(sent.map((n) => n.kind).sort()).toEqual(["cohost_added", "host_handoff"]);
+  });
+
+  it("starts a weekly game in one step and lands on its first game", async () => {
+    const host = await makeUser();
+    const { slug, code } = await createCrew(host, {
+      name: "Tuesday 7v7",
+      locationName: "Bayfront",
+      weekday: 2,
+      startTime: "19:00",
+      rules: { capacity: 14, minPlayers: 10, claimMinutes: 30, guestsAllowed: true },
+    });
+    expect(slug).toBe("tuesday-7v7");
+    const page = await getGamePage(code!, host.id);
+    expect(page?.game).toMatchObject({ title: "Tuesday 7v7", locationName: "Bayfront", hostId: host.id });
+    expect(page?.game.scheduleId).toBeTruthy();
+  });
+
+  it("remembers the last game you posted for the host form", async () => {
+    const host = await makeUser();
+    expect(await getLastHosted(host.id)).toBeNull();
+    await createGame(host, { title: "First", date: "2030-06-02", time: "10:00", locationName: "Kezar", rules: { capacity: 12, minPlayers: 8, claimMinutes: 30, guestsAllowed: true } });
+    await createGame(host, { title: "Second", date: "2030-06-09", time: "18:30", locationName: "Crocker", rules: { capacity: 14, minPlayers: 10, claimMinutes: 15, guestsAllowed: false } });
+    expect(await getLastHosted(host.id)).toMatchObject({ title: "Second", locationName: "Crocker", capacity: 14, claimMinutes: 15 });
+  });
+
+  it("writes a calendar file with the game's time and place", () => {
+    const ics = gameIcs(
+      { code: "abc123", title: "Tuesday 7v7, Field 2", startsAt: new Date("2030-06-04T02:00:00Z"), endsAt: new Date("2030-06-04T03:30:00Z"), locationName: "Bayfront", locationAddress: "Terry Francois Blvd", notes: null },
+      "https://pitchin.app/g/abc123",
+      new Date("2030-06-01T00:00:00Z"),
+    );
+    expect(ics).toContain("DTSTART:20300604T020000Z\r\nDTEND:20300604T033000Z");
+    expect(ics).toContain("SUMMARY:Tuesday 7v7\\, Field 2");
+    expect(ics).toContain("LOCATION:Bayfront\\, Terry Francois Blvd");
   });
 
   it("keeps invite-only crews closed without the code", async () => {

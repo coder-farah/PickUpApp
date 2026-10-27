@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Animated, ScrollView, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
@@ -35,7 +35,7 @@ export default function HomeScreen() {
   // The page can only scroll so far (content ends with the tab bar's 120pt of room); late cards finish before that.
   const maxScroll = listAt.contentHeight ? listAt.content + listAt.contentHeight + 120 - screenHeight : Infinity;
   const motion = useCollapse(nextBottom, tops, headerBottom, maxScroll);
-  if (isLoading) return <Loading />;
+  if (isLoading) return <Loading variant="hero" />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load your games."} onRetry={() => void refetch()} />;
   const next = dropped ?? data.next;
   // While the dropped game holds the top spot, the game that would have replaced it stays in the list below.
@@ -158,8 +158,11 @@ function useCollapse(nextBottom: number, tops: number[], headerBottom: number, m
   // The panel's bottom passes under the header (about 110pt tall with the pinned row) at `end`.
   const end = Number.isFinite(nextBottom) ? Math.max(nextBottom - 110, 60) : 1e6;
   const start = end - 150;
-  // Card i shrinks into row i under the header: it starts as its top reaches that row's slot.
-  const marks = tops.map((top, i) => Math.max(Math.min(top - headerBottom - i * ROW_STEP - ROW_HEIGHT, maxScroll - 40 - (tops.length - 1 - i) * 24), 1));
+  // Card i shrinks into row i under the header: it starts as its top reaches that row's slot. Cards near the end of the
+  // page can't scroll that far, so they stay full cards; folding them early would leave a hole where they were.
+  const natural = tops.map((top, i) => Math.max(top - headerBottom - i * ROW_STEP - ROW_HEIGHT, 1));
+  const reach = natural.findIndex((m) => m > maxScroll - 20);
+  const marks = reach < 0 ? natural : natural.slice(0, reach);
   live.current.end = end;
   live.current.marks = marks;
 
@@ -288,7 +291,13 @@ function RsvpPill({ game, onDropped, onRejoined, size = "lg" }: RsvpHandlers & {
   const { c } = useTheme();
   const act = useGameAction(game.code);
   const inGame = game.my?.status === "in";
+  // Flip the pill the moment it's tapped; it flips back only if the server says no.
+  const [flip, setFlip] = useState<boolean | null>(null);
+  useEffect(() => setFlip(null), [game.my?.status]);
+  const shown = flip ?? inGame;
   const toggle = async () => {
+    setFlip(!inGame);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     try {
       if (inGame) {
         await act.mutateAsync({ action: "leave" });
@@ -297,8 +306,9 @@ function RsvpPill({ game, onDropped, onRejoined, size = "lg" }: RsvpHandlers & {
         await act.mutateAsync({ action: "join" });
         onRejoined();
       }
-      void Haptics.selectionAsync().catch(() => undefined);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     } catch (err) {
+      setFlip(null);
       Alert.alert("Couldn't do that", (err as Error).message);
     }
   };
@@ -306,25 +316,24 @@ function RsvpPill({ game, onDropped, onRejoined, size = "lg" }: RsvpHandlers & {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={inGame ? "You're in. Tap to drop out." : "RSVP now"}
+      accessibilityLabel={shown ? "You're in. Tap to drop out." : "RSVP now"}
       disabled={act.isPending}
       onPress={() => void toggle()}
       style={{
         height: lg ? 44 : 30,
         paddingHorizontal: lg ? 20 : 12,
         borderRadius: lg ? 22 : 15,
-        backgroundColor: inGame ? c.lime : "transparent",
-        borderWidth: inGame ? 0 : 1.5,
+        backgroundColor: shown ? c.lime : "transparent",
+        borderWidth: shown ? 0 : 1.5,
         borderColor: c.lime,
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
-        opacity: act.isPending ? 0.6 : 1,
       }}
     >
-      {inGame && lg && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.limeInk }} />}
-      <Body size={lg ? 16 : 12.5} weight="semibold" color={inGame ? c.limeInk : c.lime}>
-        {inGame ? "You're in" : "RSVP now"}
+      {shown && lg && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.limeInk }} />}
+      <Body size={lg ? 16 : 12.5} weight="semibold" color={shown ? c.limeInk : c.lime}>
+        {shown ? "You're in" : "RSVP now"}
       </Body>
     </Pressable>
   );

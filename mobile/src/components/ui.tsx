@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -19,6 +19,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, radius, toneColors, useTheme, type Tone } from "@/theme";
 
 // ─── Type ────────────────────────────────────────────────────────────────────
@@ -332,11 +333,91 @@ export function Page({
   );
 }
 
-export function Loading() {
+/** One soft breathing pulse shared by every placeholder on screen. */
+function usePulse() {
+  const v = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 700, useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0.55, duration: 700, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [v]);
+  return v;
+}
+
+/** A grey stand-in for text or a photo while the real thing loads. */
+function Bone({ w, h = 14, r = 7, night, style }: { w: number | `${number}%`; h?: number; r?: number; night?: boolean; style?: StyleProp<ViewStyle> }) {
+  const { c } = useTheme();
+  return <View style={[{ width: w, height: h, borderRadius: r, backgroundColor: night ? "rgba(255,255,255,0.1)" : c.surface2 }, style]} />;
+}
+
+function CardBones() {
   const { c } = useTheme();
   return (
-    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: c.bg }}>
-      <ActivityIndicator color={c.muted} />
+    <View style={{ backgroundColor: c.surface, borderRadius: 20, padding: 18, gap: 12, borderWidth: 1, borderColor: c.line }}>
+      <Bone w="40%" h={11} />
+      <Bone w="75%" h={22} r={8} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 }}>
+        <Bone w={26} h={26} r={13} />
+        <Bone w={26} h={26} r={13} style={{ marginLeft: -12 }} />
+        <Bone w="35%" h={12} />
+      </View>
+    </View>
+  );
+}
+
+function RowBones() {
+  const { c } = useTheme();
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: c.line }}>
+      <Bone w={36} h={36} r={18} />
+      <View style={{ flex: 1, gap: 8 }}>
+        <Bone w="55%" h={13} />
+        <Bone w="80%" h={11} />
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Shown while a screen loads: the shape of the screen in soft grey, so the content seems to fade in rather than pop in
+ * after a spinner. `hero` for screens that open on a night hero, `list` for list screens, and `rows` or `cards`
+ * inside a screen that is already showing.
+ */
+export function Loading({ variant = "page" }: { variant?: "hero" | "page" | "list" | "rows" | "cards" }) {
+  const { c } = useTheme();
+  const insets = useSafeAreaInsets();
+  const pulse = usePulse();
+  if (variant === "rows" || variant === "cards")
+    return (
+      <Animated.View accessibilityLabel="Loading" style={{ opacity: pulse, gap: 14 }}>
+        {[0, 1, 2].map((i) => (variant === "rows" ? <RowBones key={i} /> : <CardBones key={i} />))}
+      </Animated.View>
+    );
+  return (
+    <View accessibilityLabel="Loading" style={{ flex: 1, backgroundColor: c.bg }}>
+      {variant === "hero" ? (
+        <View style={{ backgroundColor: c.night, paddingTop: insets.top + 72, paddingHorizontal: 20, paddingBottom: 90 }}>
+          <Animated.View style={{ opacity: pulse, gap: 14 }}>
+            <Bone night w="30%" h={11} />
+            <Bone night w="70%" h={40} r={10} />
+            <Bone night w="45%" h={12} />
+            <Bone night w={120} h={64} r={12} style={{ marginTop: 10 }} />
+          </Animated.View>
+        </View>
+      ) : (
+        <Animated.View style={{ opacity: pulse, paddingTop: insets.top + 72, paddingHorizontal: 16, gap: 12 }}>
+          <Bone w="25%" h={11} />
+          <Bone w="60%" h={34} r={10} />
+        </Animated.View>
+      )}
+      <Animated.View style={{ opacity: pulse, paddingHorizontal: 16, gap: 14, marginTop: variant === "hero" ? -56 : 24 }}>
+        {variant === "list" ? [0, 1, 2, 3, 4].map((i) => <RowBones key={i} />) : [0, 1].map((i) => <CardBones key={i} />)}
+      </Animated.View>
     </View>
   );
 }

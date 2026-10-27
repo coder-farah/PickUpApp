@@ -1,0 +1,61 @@
+name: iOS simulator check
+
+# Builds the store configuration of the app for the iOS simulator on a GitHub Mac, launches it, and saves the app's
+# logs, so a launch crash can be read without spending an Expo build.
+on:
+  push:
+    branches: [ci/sim-repro]
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: macos-15
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Generate the iOS project like a store build
+        env:
+          EAS_BUILD_PROFILE: production
+          EXPO_PUBLIC_API_URL: ${{ vars.API_URL || 'https://pitchin.app' }}
+          CI: 1
+        run: npx expo prebuild -p ios
+      - name: Build for the simulator
+        env:
+          EAS_BUILD_PROFILE: production
+          EXPO_PUBLIC_API_URL: ${{ vars.API_URL || 'https://pitchin.app' }}
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/Pitchin.xcworkspace -scheme Pitchin -configuration Release -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO | tail -40
+      - name: Launch and capture logs
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print([x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']][-1])")
+          xcrun simctl boot "$UDID"; sleep 20
+          APP=$(find build/Build/Products -name "Pitchin.app" -maxdepth 3 | head -1)
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl spawn "$UDID" log stream --level debug --style compact --predicate 'process == "Pitchin"' > app.log 2>&1 &
+          sleep 3
+          xcrun simctl launch "$UDID" app.pitchin.ios || true
+          sleep 40
+          xcrun simctl io "$UDID" screenshot shot.png || true
+          kill %1 || true
+          grep -iE "fatal|exception|error|unhandled|RCT|ReactNativeJS|Updates" app.log | grep -v "nw_\|CFNetwork\|BoringSSL" | head -150
+          ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | tail -5
+          cp ~/Library/Logs/DiagnosticReports/Pitchin* . 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sim-logs
+          path: |
+            mobile/app.log
+            mobile/shot.png
+            mobile/Pitchin*

@@ -67,11 +67,21 @@ export default function HomeScreen() {
           )}
         </NightHero>
 
-        <View onLayout={(e) => setListAt((a) => ({ ...a, content: e.nativeEvent.layout.y, contentHeight: e.nativeEvent.layout.height }))} style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
+        <View onLayout={(e) => {
+            // Read the layout now: on iPhone the event is released before React runs the update.
+            const { y, height } = e.nativeEvent.layout;
+            setListAt((a) => ({ ...a, content: y, contentHeight: height }));
+          }} style={{ marginTop: -84, paddingHorizontal: 16, gap: 36 }}>
           {alsoPlaying.length > 0 && (
-            <View onLayout={(e) => setListAt((a) => ({ ...a, section: e.nativeEvent.layout.y }))}>
+            <View onLayout={(e) => {
+              const { y } = e.nativeEvent.layout;
+              setListAt((a) => ({ ...a, section: y }));
+            }}>
               <SectionTitle>Also on your list</SectionTitle>
-              <View onLayout={(e) => setListAt((a) => ({ ...a, list: e.nativeEvent.layout.y }))} style={{ gap: 10 }}>
+              <View onLayout={(e) => {
+                const { y } = e.nativeEvent.layout;
+                setListAt((a) => ({ ...a, list: y }));
+              }} style={{ gap: 10 }}>
                 {alsoPlaying.map((g, i) => (
                   <Animated.View
                     key={g.id}

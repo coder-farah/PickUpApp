@@ -15,11 +15,14 @@ import { keys } from "@/api/hooks";
 import type { GameDetailView } from "@/api/types";
 import { PUSH_ACTIONS, gameCodeFrom, refreshPushRegistration, registerPushActions, type PushAction } from "@/lib/push";
 import { ErrorView } from "@/components/ui";
+import { keepSaved, restoreSaved } from "@/lib/cache";
 import { useTheme } from "@/theme";
 
 void SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 15_000, retry: 1 } } });
+restoreSaved(queryClient);
+keepSaved(queryClient);
 
 // An error outside rendering shows its message instead of closing the app, so a tester can screenshot it for us.
 if (Platform.OS !== "web" && !__DEV__) {

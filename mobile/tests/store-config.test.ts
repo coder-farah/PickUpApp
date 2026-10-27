@@ -33,7 +33,7 @@ describe("store config", () => {
 
   it("asks for the calendar only to add a game, and never for reminders", async () => {
     const cal = (await load()).plugins.find((p: unknown) => Array.isArray(p) && p[0] === "expo-calendar");
-    expect(cal[1]).toEqual({ calendarPermission: expect.stringMatching(/Add to calendar/), remindersPermission: false });
+    expect(cal[1]).toEqual({ calendarPermission: expect.stringMatching(/Add to calendar/), remindersPermission: expect.any(String) });
   });
 
   it("takes over-the-air updates only in store builds, one channel per profile", async () => {

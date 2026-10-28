@@ -20,6 +20,8 @@ export const env = {
     phone: process.env.AUTH_DEMO_PHONE ?? "",
     code: process.env.AUTH_DEMO_CODE ?? "",
   },
+  // Turns on /api/v1/test-players, which signs in the fake players behind the "Test players" GitHub action.
+  testPlayersKey: process.env.TEST_PLAYERS_KEY ?? "",
   push: {
     enabled: process.env.PUSH_NOTIFICATIONS !== "false",
     // Only needed when "Enhanced push security" is on in the Expo project.

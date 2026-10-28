@@ -13,6 +13,7 @@ import { dispatchPending, queueNotifications } from "@/server/notify";
 import { appleClientSecret } from "@/server/apple";
 import { env } from "@/server/env";
 import { cardView, gameDetailView } from "@/server/views";
+import { removeTestPlayers, testPlayerPhone, testPlayerSession, testPlayersAllowed } from "@/server/test-players";
 import { makeGame, makeUser, statusOf } from "./helpers";
 
 vi.mock("@/server/geocode", () => ({ locateField: async () => ({ lat: 37.75, lng: -122.42 }) }));
@@ -258,5 +259,35 @@ describe("Apple client secret", () => {
     expect(JSON.parse(Buffer.from(h, "base64url").toString())).toEqual({ alg: "ES256", kid: "KEY1234567" });
     expect(JSON.parse(Buffer.from(b, "base64url").toString())).toMatchObject({ iss: "TEAM123456", sub: "app.pitchin.ios", aud: "https://appleid.apple.com" });
     expect(verify("SHA256", Buffer.from(`${h}.${b}`), { key: publicKey, dsaEncoding: "ieee-p1363" }, Buffer.from(s, "base64url"))).toBe(true);
+  });
+});
+
+describe("test players", () => {
+  it("are off without a key, and need the exact key when on", () => {
+    env.testPlayersKey = "";
+    expect(testPlayersAllowed("")).toBe(false);
+    expect(testPlayersAllowed(null)).toBe(false);
+    env.testPlayersKey = "a-long-enough-test-key";
+    expect(testPlayersAllowed("a-long-enough-test-key")).toBe(true);
+    expect(testPlayersAllowed("a-long-enough-test-kez")).toBe(false);
+    env.testPlayersKey = "";
+  });
+
+  it("sign in as onboarded fake players and can all be removed, leaving their games", async () => {
+    const host = await makeUser();
+    const g = await makeGame(host, new Date(), { capacity: 10, startsInHours: 48 });
+    const a = await testPlayerSession(1, { label: "Mission", lat: 37.76, lng: -122.42 });
+    const again = await testPlayerSession(1);
+    expect(again.user.id).toBe(a.user.id);
+    expect(again.token).not.toBe(a.token);
+    const [row] = await db.select().from(t.users).where(eq(t.users.id, a.user.id));
+    expect(row).toMatchObject({ phone: testPlayerPhone(1), name: "Maya Torres", username: "test.maya", areaLabel: "Mission" });
+    expect(row.onboardedAt).not.toBeNull();
+    await join(g.id, a.user.id);
+
+    expect(await removeTestPlayers()).toBe(1);
+    expect(await statusOf(g.id, a.user.id)).toBe("out");
+    expect(await db.select().from(t.users).where(eq(t.users.phone, testPlayerPhone(1)))).toEqual([]);
+    expect((await db.select().from(t.users).where(eq(t.users.id, host.id)))[0].deletedAt).toBeNull();
   });
 });

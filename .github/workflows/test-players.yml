@@ -1,0 +1,46 @@
+name: Test players
+
+# Fifteen fake players (fictional 555-01xx numbers) who act on the live server through the app's own API, so you get
+# the real notifications on your phone. Needs the same TEST_PLAYERS_KEY in Railway's variables and this repo's secrets.
+# Run it from the Actions tab: Actions > Test players > Run workflow. See scripts/test-players.ts for every command.
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: What the players do
+        type: choice
+        options: [join, leave, guest, host, cohost, handoff, edit, rename, cancel, remove]
+        default: join
+      game:
+        description: The game's share code (the part after /g/). For host, a game whose field to use, or empty.
+        type: string
+        required: false
+      more:
+        description: "join/leave/guest: how many. cohost/handoff: part of your name. edit: minutes later. rename: new title. host: hours from now, cap, players."
+        type: string
+        required: false
+
+concurrency:
+  group: test-players
+  cancel-in-progress: false
+
+jobs:
+  play:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Play
+        env:
+          API_URL: ${{ vars.API_URL || 'https://pickupapp-production.up.railway.app' }}
+          TEST_PLAYERS_KEY: ${{ secrets.TEST_PLAYERS_KEY }}
+          COMMAND: ${{ inputs.command }}
+          GAME: ${{ inputs.game }}
+          MORE: ${{ inputs.more }}
+        run: |
+          # Inputs go through env and word splitting only, never into the script's source.
+          npx tsx scripts/test-players.ts "$COMMAND" $GAME $MORE

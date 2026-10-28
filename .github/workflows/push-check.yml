@@ -1,0 +1,14 @@
+name: Push check
+on:
+  push:
+    branches: [ci/push-check]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Does the Expo project have an Apple push key?
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          q='{"query":"{ app { byFullName(fullName: \"@coder-farah/pitchin\") { id iosAppCredentials { appleAppIdentifier { bundleIdentifier } pushKey { keyIdentifier updatedAt } } } } }"}'
+          curl -s https://api.expo.dev/graphql -H "Authorization: Bearer $EXPO_TOKEN" -H 'content-type: application/json' -d "$q" | jq '.data.app.byFullName.iosAppCredentials // .errors'

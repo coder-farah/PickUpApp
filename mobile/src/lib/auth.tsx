@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useQueryClient } from "@tanstack/react-query";
 import { api, setUnauthorizedHandler, tokenStore } from "@/api/client";
 import type { MeView, SessionView, UserView } from "@/api/types";
+import { clearSaved } from "./cache";
 import { currentPushToken } from "./push";
 
 type Auth = {
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const forget = useCallback(async () => {
     await tokenStore.clear();
     qc.clear();
+    clearSaved();
     setUser(null);
     setStatus("signedOut");
   }, [qc]);
@@ -31,6 +33,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUnauthorizedHandler(() => void forget());
     (async () => {
       if (!(await tokenStore.get())) return setStatus("signedOut");
+      // Seen on this phone before: open right away on the saved profile, and check it below.
+      const saved = qc.getQueryData<MeView>(["me"]);
+      if (saved) {
+        setUser(saved.user);
+        setStatus("signedIn");
+      }
       try {
         const me = await api<MeView>("/api/v1/me");
         qc.setQueryData(["me"], me);

@@ -10,6 +10,8 @@
  *   guest <game> [count=1]        that many of them bring a friend
  *   host [near-game] [hours=24] [cap=10] [players=6]
  *                                 player 1 hosts a game (at near-game's field, if given) and players 2..N join
+ *   fill [count=16] [private=2]   different players host that many public games around SF over the next week, with
+ *                                 some already full, plus a few private ones only people with the link can find
  *   cohost <game> <you>           the test host makes you a co-host (you need to be on the list)
  *   handoff <game> <you>          the test host hands you the game
  *   edit <game> [minutes=30]      the test host moves the game later by that many minutes
@@ -96,6 +98,40 @@ async function editAs(code: string, change: (g: GameDetailView["game"]) => Parti
   return { host, after: await call<GameDetailView>(`/api/v1/games/${encodeURIComponent(code)}`, { token: (await player(host)).token, method: "PATCH", body }) };
 }
 
+/** Fields around San Francisco for `fill`, each with the sports it suits. */
+const FIELDS = [
+  { locationName: "Dolores Park", locationAddress: "Dolores St & 19th St", sports: ["soccer", "ultimate"] },
+  { locationName: "Kezar Stadium", locationAddress: "670 Kezar Dr", sports: ["soccer"] },
+  { locationName: "Beach Chalet Fields", locationAddress: "1500 John F Kennedy Dr", sports: ["soccer"] },
+  { locationName: "Crocker Amazon Playground", locationAddress: "799 Moscow St", sports: ["soccer"] },
+  { locationName: "Garfield Square", locationAddress: "Treat Ave & 25th St", sports: ["soccer"] },
+  { locationName: "Franklin Square", locationAddress: "16th St & Bryant St", sports: ["soccer", "ultimate"] },
+  { locationName: "Potrero Hill Rec Center", locationAddress: "801 Arkansas St", sports: ["soccer", "basketball"] },
+  { locationName: "Moscone Rec Center", locationAddress: "1800 Chestnut St", sports: ["soccer", "ultimate"] },
+  { locationName: "Hamilton Rec Center", locationAddress: "1900 Geary Blvd", sports: ["basketball"] },
+  { locationName: "Mission Rec Center", locationAddress: "2450 Harrison St", sports: ["basketball"] },
+  { locationName: "Upper Noe Rec Center", locationAddress: "295 Day St", sports: ["basketball", "volleyball"] },
+  { locationName: "Marina Green", locationAddress: "Marina Blvd & Scott St", sports: ["ultimate", "soccer"] },
+  { locationName: "Ocean Beach", locationAddress: "Great Hwy & Lincoln Way", sports: ["volleyball"] },
+  { locationName: "Glen Canyon Park", locationAddress: "70 Elk St", sports: ["soccer"] },
+] as const;
+const NAMES: Record<string, string[]> = {
+  soccer: ["Pickup 7v7", "Small-sided 5v5", "Evening run", "Kickabout", "Coed 6v6"],
+  basketball: ["Full court run", "3v3 half court", "Hoops run"],
+  volleyball: ["Beach doubles", "Sixes"],
+  ultimate: ["Hat game", "Ultimate pickup"],
+};
+const CAPS = [10, 12, 8, null, 14, 6];
+const FILL = [0.5, 0.9, 1.25, 0.6, 0.35, 1];
+const HOURS = ["09:00", "10:00", "12:00", "17:30", "18:00", "19:00", "20:00"];
+
+/** Test player `host` posts a game and the next `players - 1` test players (wrapping around) join it. */
+async function postGame(host: number, body: Record<string, unknown>, players: number) {
+  const { code } = await call<{ code: string }>(`/api/v1/games`, { token: (await player(host)).token, body });
+  for (let i = 1; i < Math.min(players, PLAYERS); i++) await act(code, ((host - 1 + i) % PLAYERS) + 1, "join");
+  return game(code, host);
+}
+
 const [cmd, ...args] = process.argv.slice(2);
 const num = (v: string | undefined, d: number) => (v && /^\d+$/.test(v) ? Number(v) : d);
 
@@ -169,6 +205,40 @@ async function main() {
         say(n, "is in");
       }
       status(await game(code, 1));
+      break;
+    }
+    case "fill": {
+      const [count, privates] = [num(args[0], 16), num(args[1], 2)];
+      const weekday = (date: string) => new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+      for (let i = 0; i < count + privates; i++) {
+        const secret = i >= count;
+        const host = (i % PLAYERS) + 1;
+        const field = FIELDS[(i * 5) % FIELDS.length];
+        const sport = field.sports[i % field.sports.length];
+        const cap = secret ? 10 : CAPS[i % CAPS.length];
+        const { date } = localParts(new Date(Date.now() + (1 + (i % 7)) * 86_400_000).toISOString(), "America/Los_Angeles");
+        const first = (await player(host)).user.name.split(" ")[0];
+        const title = secret ? `${first}'s private run` : `${weekday(date)} ${NAMES[sport][i % NAMES[sport].length]}`;
+        const g = await postGame(
+          host,
+          {
+            title,
+            sport,
+            date,
+            time: HOURS[(i * 3) % HOURS.length],
+            durationMinutes: sport === "basketball" ? 120 : 90,
+            locationName: field.locationName,
+            locationAddress: field.locationAddress,
+            notes: "A test game from the Test players action.",
+            rules: { capacity: cap, minPlayers: Math.min(6, cap ?? 6), claimMinutes: 30, guestsAllowed: true },
+            visibility: secret ? "private" : "public",
+          },
+          secret ? 4 : Math.max(2, Math.round((cap ?? 8) * FILL[i % FILL.length])),
+        );
+        console.log(
+          `  ${secret ? "private " : ""}${g.game.title} · ${sport} · ${g.game.timeRange} · ${g.game.locationName} · ${g.game.going} going${g.queue.length ? `, ${g.queue.length} waiting` : ""} · ${g.game.shareUrl}`,
+        );
+      }
       break;
     }
     case "cohost":

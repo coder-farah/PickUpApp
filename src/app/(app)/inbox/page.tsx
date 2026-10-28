@@ -22,6 +22,7 @@ const icons: Record<string, { icon: React.ReactNode; tone: string }> = {
   game_cancelled: { icon: <CalendarX className="size-4" />, tone: "bg-danger-soft text-danger" },
   cohost_added: { icon: <UserPlus className="size-4" />, tone: "bg-pitch-soft text-pitch" },
   host_handoff: { icon: <Crown className="size-4" />, tone: "bg-lime text-lime-ink" },
+  organizer_added: { icon: <Crown className="size-4" />, tone: "bg-lime text-lime-ink" },
   game_changed: { icon: <CalendarClock className="size-4" />, tone: "bg-amber-soft text-amber" },
   game_at_risk: { icon: <Clock className="size-4" />, tone: "bg-amber-soft text-amber" },
   offer_expired: { icon: <Clock className="size-4" />, tone: "bg-amber-soft text-amber" },

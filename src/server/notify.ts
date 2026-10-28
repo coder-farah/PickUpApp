@@ -15,6 +15,7 @@ export type NotificationInput = {
     | "game_changed"
     | "cohost_added"
     | "host_handoff"
+    | "organizer_added"
     | "spot_offered"
     | "offer_expired"
     | "last_call"

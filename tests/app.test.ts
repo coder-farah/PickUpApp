@@ -8,7 +8,7 @@ import { deleteAccount } from "@/server/account";
 import { createCrew, createGame, editGame } from "@/server/hosting";
 import { gameIcs } from "@/lib/ics";
 import { addCohost, cohostCandidates, makeHost } from "@/server/cohosts";
-import { joinCrew, leaveCrew } from "@/server/crews";
+import { joinCrew, leaveCrew, setCrewRole } from "@/server/crews";
 import { dispatchPending, queueNotifications } from "@/server/notify";
 import { appleClientSecret } from "@/server/apple";
 import { env } from "@/server/env";
@@ -184,6 +184,27 @@ describe("hosting from the app", () => {
     const page = await getGamePage(code!, host.id);
     expect(page?.game).toMatchObject({ title: "Tuesday 7v7", locationName: "Bayfront", hostId: host.id });
     expect(page?.game.scheduleId).toBeTruthy();
+  });
+
+  it("lets organizers make others organizers, and keeps at least one", async () => {
+    const [host, member, outsider] = [await makeUser("Pooya F"), await makeUser(), await makeUser()];
+    const { slug } = await createCrew(host, { name: "Sunday 11s", locationName: "Kezar", weekday: 0, startTime: "10:00", rules: { capacity: 22, minPlayers: 14, claimMinutes: 30, guestsAllowed: true } });
+    await joinCrew(member.id, slug, null);
+    await expect(setCrewRole(member, slug, member.id, "organizer")).rejects.toThrow("Only organizers");
+    await expect(setCrewRole(host, slug, outsider.id, "organizer")).rejects.toThrow("not in this crew");
+    await expect(setCrewRole(host, slug, host.id, "member")).rejects.toThrow("needs an organizer");
+
+    await setCrewRole(host, slug, member.id, "organizer");
+    const roles = await db.select().from(t.groupMembers);
+    expect(roles.find((m) => m.userId === member.id)?.role).toBe("organizer");
+    const [n] = await db.select().from(t.notifications).where(eq(t.notifications.userId, member.id));
+    expect(n).toMatchObject({ kind: "organizer_added", title: "You're an organizer of Sunday 11s", url: `/groups/${slug}` });
+
+    // Now the first organizer can step down, and the new one can post the crew's games.
+    await setCrewRole(host, slug, host.id, "member");
+    await leaveCrew(host.id, roles[0].groupId);
+    const posted = await createGame(member, { title: "Extra Sunday", date: "2030-06-02", time: "10:00", locationName: "Kezar", groupId: roles[0].groupId, rules: { capacity: 22, minPlayers: 14, claimMinutes: 30, guestsAllowed: true } });
+    expect(posted.code).toBeTruthy();
   });
 
   it("remembers the last game you posted for the host form", async () => {

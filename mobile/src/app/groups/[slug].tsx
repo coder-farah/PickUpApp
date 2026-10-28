@@ -1,6 +1,8 @@
-import { Alert, View } from "react-native";
+import { Alert, Pressable, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { useCrew, useCrewAction } from "@/api/hooks";
+import { useCrew, useCrewAction, useCrewRole } from "@/api/hooks";
+import { useAuth } from "@/lib/auth";
+import { showMenu } from "@/lib/menu";
 import { shareLink } from "@/lib/share";
 import { Avatar } from "@/components/Avatar";
 import { CrewCrest } from "@/components/CrewTile";
@@ -16,9 +18,25 @@ export default function CrewScreen() {
   const { scrolled, onScroll } = useScrolled();
   const { data, isLoading, error, refetch, isRefetching } = useCrew(slug);
   const act = useCrewAction(slug);
+  const setRole = useCrewRole(slug);
+  const { user } = useAuth();
   if (isLoading) return <Loading variant="hero" />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load this crew."} onRetry={() => void refetch()} />;
   const crew = data.crew;
+  const organizers = data.members.filter((m) => m.role === "organizer").length;
+  // Organizers tap a member to make them an organizer too, or to make an organizer a member again.
+  const manage = (m: (typeof data.members)[number]) => {
+    const change = (role: "organizer" | "member") =>
+      setRole.mutate({ userId: m.id, role }, { onError: (e) => Alert.alert("Couldn't change that", e.message) });
+    const me = m.id === user?.id;
+    if (m.role === "member") {
+      showMenu(m.name, [{ label: "Make organizer", onPress: () => change("organizer") }], "Organizers post the crew's games and change its weekly times.");
+    } else if (organizers > 1) {
+      showMenu(me ? "Step down as organizer?" : m.name, [{ label: me ? "Step down" : "Make a member", destructive: true, onPress: () => change("member") }]);
+    } else {
+      Alert.alert("The only organizer", "A crew needs an organizer. Make someone else one first.");
+    }
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -80,14 +98,25 @@ export default function CrewScreen() {
 
           <View>
             <SectionTitle action={<Mono>{data.members.length}</Mono>}>Members</SectionTitle>
+            {data.isOrganizer && (
+              <Body size={13} color={c.muted} style={{ marginBottom: 4 }}>
+                Tap someone to make them an organizer. Organizers post games and change the weekly times.
+              </Body>
+            )}
             {data.members.map((m) => (
-              <View key={m.id} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: c.line }}>
+              <Pressable
+                key={m.id}
+                disabled={!data.isOrganizer || setRole.isPending}
+                onPress={() => manage(m)}
+                accessibilityRole={data.isOrganizer ? "button" : undefined}
+                style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: c.line }}
+              >
                 <Avatar name={m.name} seed={m.id} photo={m.photo} size={34} />
                 <Body weight="medium" style={{ flex: 1 }}>
                   {m.name}
                 </Body>
                 {m.role === "organizer" && <Badge tone="pitch" label="Organizer" />}
-              </View>
+              </Pressable>
             ))}
           </View>
 

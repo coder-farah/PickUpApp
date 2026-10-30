@@ -15,6 +15,7 @@ import { TopBar } from "@/components/TopBar";
 import { Body, Button, Disp, EmptyState, ErrorView, Loading, Mono, Page, SectionTitle } from "@/components/ui";
 import { useTheme } from "@/theme";
 import { Pressable } from "react-native";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 export default function HomeScreen() {
   const { c } = useTheme();
@@ -242,6 +243,10 @@ function PassedRows({ games, motion, top }: { games: GameCardView[]; motion: Mot
   if (!games.length) return null;
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", top: top - 6, left: 16, right: 16, zIndex: 11 }}>
+      {/* Paper behind the rows, so the cards still scrolling up slide under them instead of showing between. */}
+      {games.map((g, i) => (
+        <RowBackdrop key={`b${g.id}`} index={i} opacity={motion.rise(i).opacity} />
+      ))}
       {games.map((g, i) => {
         const r = motion.rise(i, 24);
         return (
@@ -286,7 +291,35 @@ function PassedRows({ games, motion, top }: { games: GameCardView[]; motion: Mot
   );
 }
 
+/**
+ * The paper behind row i: from just above the row (the first one fades in from the header's glass) down past its
+ * bottom, then a short fade. Each later backdrop covers the fade of the one before, so a stack reads as one sheet.
+ */
+function RowBackdrop({ index, opacity }: { index: number; opacity: Animated.AnimatedInterpolation<number> }) {
+  const { c } = useTheme();
+  const first = index === 0;
+  const top = first ? 0 : index * ROW_STEP - ROW_STEP / 2;
+  const bottom = index * ROW_STEP + ROW_HEIGHT + 6;
+  return (
+    <Animated.View pointerEvents="none" style={{ position: "absolute", top, left: -16, right: -16, height: bottom - top + BACKDROP_FADE, opacity }}>
+      <Svg width="100%" height="100%" preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={`row-backdrop-${index}`} x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={c.bg} stopOpacity={first ? 0 : 1} />
+            <Stop offset={String(first ? (ROW_HEIGHT * 0.6) / (bottom - top + BACKDROP_FADE) : 0)} stopColor={c.bg} stopOpacity={1} />
+            <Stop offset={String((bottom - top) / (bottom - top + BACKDROP_FADE))} stopColor={c.bg} stopOpacity={1} />
+            <Stop offset="1" stopColor={c.bg} stopOpacity={0} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill={`url(#row-backdrop-${index})`} />
+      </Svg>
+    </Animated.View>
+  );
+}
+
 const MAX_ROWS = 6;
+/** How far the paper behind the rows fades out below the last one. */
+const BACKDROP_FADE = 18;
 const ROW_HEIGHT = 36;
 /** Each row sits this far below the one before it. */
 const ROW_STEP = 44;

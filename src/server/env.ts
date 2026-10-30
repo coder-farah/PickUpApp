@@ -20,6 +20,8 @@ export const env = {
     phone: process.env.AUTH_DEMO_PHONE ?? "",
     code: process.env.AUTH_DEMO_CODE ?? "",
   },
+  // A public Mapbox token (pk.…) for the aerial photo at the top of a game. Without it games keep the plain night hero.
+  mapboxToken: process.env.MAPBOX_TOKEN ?? "",
   // Turns on /api/v1/test-players, which signs in the fake players behind the "Test players" GitHub action.
   testPlayersKey: process.env.TEST_PLAYERS_KEY ?? "",
   push: {

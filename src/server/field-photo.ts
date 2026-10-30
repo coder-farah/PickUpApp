@@ -7,7 +7,10 @@ import { env } from "./env";
  */
 type FieldFix = { name: string; at?: { lat: number; lng: number }; zoom?: number; photo?: string; credit?: string };
 
-export const FIELD_FIXES: FieldFix[] = [];
+export const FIELD_FIXES: FieldFix[] = [
+  { name: "east cut", photo: "/fields/east-cut.jpg" },
+  { name: "mission rec", photo: "/fields/mission-rec.jpg" },
+];
 
 const MAPBOX_CREDIT = "© Mapbox © OpenStreetMap © Maxar";
 const ZOOM = 18;

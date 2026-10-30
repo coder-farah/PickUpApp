@@ -9,14 +9,14 @@ on:
       command:
         description: What the players do
         type: choice
-        options: [join, leave, guest, host, cohost, handoff, edit, rename, cancel, remove]
+        options: [join, leave, guest, host, fill, cohost, handoff, edit, rename, cancel, remove]
         default: join
       game:
         description: The game's share code (the part after /g/). For host, a game whose field to use, or empty.
         type: string
         required: false
       more:
-        description: "join/leave/guest: how many. cohost/handoff: part of your name. edit: minutes later. rename: new title. host: hours from now, cap, players."
+        description: "join/leave/guest: how many. cohost/handoff: part of your name. edit: minutes later. rename: new title. host: hours from now, cap, players. fill: how many public, then private."
         type: string
         required: false
 

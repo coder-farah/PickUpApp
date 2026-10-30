@@ -94,8 +94,9 @@ export type GameDetailView = {
     /** The message to paste in a group chat */
     shareText: string;
     mapsUrl: string;
-    /** An aerial photo of the field, when we know where it is. Show "© Mapbox © OpenStreetMap" with it. */
+    /** A photo of the field from above, when we have one. Show `fieldPhotoCredit` with it. */
     fieldPhoto: string | null;
+    fieldPhotoCredit: string | null;
   };
   host: FaceView;
   /** People who run the game with the host */

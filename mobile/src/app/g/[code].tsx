@@ -73,7 +73,7 @@ export default function GameScreen() {
         glass={scrolled}
       />
       <Page refreshing={isRefetching} onRefresh={() => void refetch()} tabBar={false} onScroll={onScroll}>
-        <NightHero fade={100} photo={g.fieldPhoto}>
+        <NightHero fade={100} photo={g.fieldPhoto} credit={g.fieldPhotoCredit}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Mono size={11.5} color={c.lime}>
               {g.weekly ? "Weekly game" : "One-time game"}

@@ -6,14 +6,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { fonts, useTheme } from "@/theme";
 import { PitchMotif } from "./Logo";
 
-/** Mapbox's credit, which must show wherever its imagery does. */
-export const FIELD_PHOTO_CREDIT = "© Mapbox © OpenStreetMap © Maxar";
-
 /**
  * A pitch-night panel that fades into the page, like the website's hero. Content after it can pull up over the fade.
- * With `photo` (an aerial shot of the field) the photo shows through the night, darkest where the text sits.
+ * With `photo` (an aerial shot of the field) the photo shows through the night, darkest where the text sits, with its
+ * `credit` in the corner.
  */
-export function NightHero({ children, fade = 110, style, photo }: { children: ReactNode; fade?: number; style?: StyleProp<ViewStyle>; photo?: string | null }) {
+export function NightHero({ children, fade = 110, style, photo, credit }: { children: ReactNode; fade?: number; style?: StyleProp<ViewStyle>; photo?: string | null; credit?: string | null }) {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   return (
@@ -46,7 +44,9 @@ export function NightHero({ children, fade = 110, style, photo }: { children: Re
             </Defs>
             <Rect x="0" y="0" width="100%" height="100%" fill="url(#photo-shade)" />
           </Svg>
-          <Text style={{ position: "absolute", right: 10, top: insets.top + 50, fontFamily: fonts.monoMedium, fontSize: 9, color: "rgba(255,255,255,0.6)" }}>{FIELD_PHOTO_CREDIT}</Text>
+          {credit ? (
+            <Text style={{ position: "absolute", right: 10, top: insets.top + 50, fontFamily: fonts.monoMedium, fontSize: 9, color: "rgba(255,255,255,0.6)" }}>{credit}</Text>
+          ) : null}
         </View>
       ) : (
         <PitchMotif style={{ top: -110, right: -200 }} />

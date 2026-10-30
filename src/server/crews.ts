@@ -2,6 +2,8 @@ import "server-only";
 import { and, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db, t } from "./db";
 import { GameError } from "./engine";
+import { queueNotifications } from "./notify";
+import type { SessionUser } from "./auth";
 
 /** Join a crew by its slug, or by an invite code for invite-only crews. Returns the crew. */
 export async function joinCrew(userId: string, slugOrNull: string | null, invite: string | null) {
@@ -23,6 +25,39 @@ export async function leaveCrew(userId: string, groupId: string) {
     throw new GameError("You're the only organizer. Make someone else an organizer before leaving.");
   }
   await db.delete(t.groupMembers).where(and(eq(t.groupMembers.groupId, groupId), eq(t.groupMembers.userId, userId)));
+}
+
+/**
+ * Organizers run a crew: post its games and change its weekly times. Any organizer can make a member one, or make an
+ * organizer (themselves included) a member again, as long as the crew keeps at least one.
+ */
+export async function setCrewRole(actor: SessionUser, slug: string, userId: string, role: "organizer" | "member") {
+  const [g] = await db.select().from(t.groups).where(eq(t.groups.slug, slug));
+  if (!g) throw new GameError("This crew doesn't exist.");
+  const members = await db.select().from(t.groupMembers).where(eq(t.groupMembers.groupId, g.id));
+  if (members.find((m) => m.userId === actor.id)?.role !== "organizer") throw new GameError("Only organizers can change who organizes.");
+  const target = members.find((m) => m.userId === userId);
+  if (!target) throw new GameError("They're not in this crew.");
+  if (target.role === role) return;
+  if (role === "member" && members.filter((m) => m.role === "organizer").length === 1) {
+    throw new GameError("A crew needs an organizer. Make someone else one first.");
+  }
+  await db.transaction(async (tx) => {
+    await tx.update(t.groupMembers).set({ role }).where(and(eq(t.groupMembers.groupId, g.id), eq(t.groupMembers.userId, userId)));
+    if (role === "organizer" && userId !== actor.id) {
+      await queueNotifications(tx, [
+        {
+          userId,
+          kind: "organizer_added",
+          title: `You're an organizer of ${g.name}`,
+          body: `${(actor.name ?? "An organizer").split(" ")[0]} made you one. You can post its games and change its weekly times.`,
+          groupId: g.id,
+          url: `/groups/${g.slug}`,
+          sms: true,
+        },
+      ]);
+    }
+  });
 }
 
 /** Member counts and weekly times for crew cards. */

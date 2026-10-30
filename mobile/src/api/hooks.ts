@@ -49,6 +49,16 @@ export function useGameAction(code: string) {
   });
 }
 
+/** An organizer makes a member an organizer, or an organizer a member again. */
+export function useCrewRole(slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: "organizer" | "member" }) =>
+      api<CrewView>(`/api/v1/crews/${encodeURIComponent(slug)}/members`, { body: { userId, role } }),
+    onSuccess: (data) => qc.setQueryData(keys.crew(data.crew.slug), data),
+  });
+}
+
 export function useCrewAction(slug: string) {
   const qc = useQueryClient();
   return useMutation({

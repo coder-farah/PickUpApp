@@ -68,6 +68,7 @@ const ICONS: Record<string, [Icon, Tone]> = {
   game_cancelled: [CalendarX, "danger"],
   cohost_added: [UserPlus, "pitch"],
   host_handoff: [Crown, "lime"],
+  organizer_added: [Crown, "lime"],
   game_changed: [CalendarClock, "amber"],
   game_at_risk: [Clock, "amber"],
   offer_expired: [Clock, "amber"],

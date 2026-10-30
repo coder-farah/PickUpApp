@@ -10,6 +10,7 @@ type FieldFix = { name: string; at?: { lat: number; lng: number }; zoom?: number
 export const FIELD_FIXES: FieldFix[] = [
   { name: "east cut", photo: "/fields/east-cut.jpg" },
   { name: "mission rec", photo: "/fields/mission-rec.jpg" },
+  { name: "crocker amazon", photo: "/fields/crocker-amazon.jpg" },
 ];
 
 const MAPBOX_CREDIT = "© Mapbox © OpenStreetMap © Maxar";

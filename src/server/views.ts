@@ -1,5 +1,6 @@
 import "server-only";
 import { env } from "./env";
+import { fieldPhotoUrl } from "./field-photo";
 import type { GameCardData, GamePageData } from "./queries";
 import type { SessionUser } from "./auth";
 import type { Notification } from "./db/schema";
@@ -150,6 +151,7 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
       shareUrl,
       shareText,
       mapsUrl: `https://maps.apple.com/?q=${encodeURIComponent([g.locationName, g.locationAddress].filter(Boolean).join(", "))}`,
+      fieldPhoto: fieldPhotoUrl(g.lat, g.lng),
     },
     host: face({ id: p.host.id, name: p.host.name, v: p.host.v }),
     cohosts: p.cohosts.map(face),

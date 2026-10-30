@@ -2,6 +2,7 @@ import { api, needUser } from "@/server/api";
 import { crewStats } from "@/server/crews";
 import { getHome, listDiscover, unreadCount, waitlistPosition } from "@/server/queries";
 import { cardView, crewCardView } from "@/server/views";
+import { fieldPhoto } from "@/server/field-photo";
 import { DEFAULT_MILES, DEFAULT_PLACE } from "@/lib/geo";
 import { roomNote } from "@/lib/game-state";
 import { DEFAULT_TZ, dayKey, fmtDay, inZone } from "@/lib/time";
@@ -55,7 +56,8 @@ export const GET = api(async (): Promise<HomeView> => {
             : "You're on the waitlist"
           : [roomNote(next.capacity, next.inCount, next.waitCount), next.capacity !== null && next.waitCount ? `${next.waitCount} on waitlist` : ""].filter(Boolean).join(" · ") ||
             (next.status === "on" ? "Game on" : `${Math.max(next.minPlayers - next.inCount, 0)} more to play`);
-    nextView = { ...cardView(next, now), whenLabel, note, position };
+    const photo = fieldPhoto(next);
+    nextView = { ...cardView(next, now), whenLabel, note, position, fieldPhoto: photo?.url ?? null, fieldPhotoCredit: photo?.credit ?? null };
   }
 
   const first = (user.name ?? "").split(" ")[0];

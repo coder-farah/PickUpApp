@@ -55,7 +55,7 @@ export default function HomeScreen() {
       </TopBar>
       <PassedRows games={alsoPlaying.slice(0, MAX_ROWS)} motion={motion} top={headerBottom} />
       <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={motion.onScroll}>
-        <NightHero>
+        <NightHero photo={next?.fieldPhoto} credit={next?.fieldPhotoCredit}>
           <Body size={15} color="rgba(255,255,255,0.6)">
             {data.greeting}
           </Body>

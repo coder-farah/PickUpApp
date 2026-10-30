@@ -197,6 +197,9 @@ export type NextUpView = GameCardView & {
   /** "A spot opened and it's held for you", "You're #2 on the waitlist", "3 left · 2 on waitlist"… */
   note: string;
   position: number | null;
+  /** The field from above, shown behind the panel, with its credit. */
+  fieldPhoto: string | null;
+  fieldPhotoCredit: string | null;
 };
 
 export type HomeView = {

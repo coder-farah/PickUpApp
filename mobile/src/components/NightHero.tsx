@@ -36,8 +36,8 @@ export function NightHero({ children, fade = 110, style, photo, credit }: { chil
           <Svg width="100%" height="100%" preserveAspectRatio="none" style={{ position: "absolute", inset: 0 }}>
             <Defs>
               <LinearGradient id="photo-shade" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor={c.night} stopOpacity={0.6} />
-                <Stop offset="0.28" stopColor={c.night} stopOpacity={0.2} />
+                <Stop offset="0" stopColor={c.night} stopOpacity={0.65} />
+                <Stop offset="0.28" stopColor={c.night} stopOpacity={0.42} />
                 <Stop offset="0.6" stopColor={c.night} stopOpacity={0.7} />
                 <Stop offset="1" stopColor={c.night} stopOpacity={1} />
               </LinearGradient>

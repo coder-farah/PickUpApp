@@ -37,6 +37,8 @@ export const env = {
     verifyServiceSid: process.env.TWILIO_VERIFY_SERVICE_SID ?? "",
     fromNumber: process.env.TWILIO_FROM_NUMBER ?? "",
   },
+  // Login texts the whole server may send in an hour. Caps the bill if someone scripts fake sign-ups (SMS pumping).
+  loginCodesPerHour: Number(process.env.LOGIN_CODES_PER_HOUR) || 300,
 };
 
 export const twilioConfigured = () => !!(env.twilio.accountSid && env.twilio.authToken);

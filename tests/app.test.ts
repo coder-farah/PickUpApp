@@ -312,3 +312,20 @@ describe("test players", () => {
     expect((await db.select().from(t.users).where(eq(t.users.id, host.id)))[0].deletedAt).toBeNull();
   });
 });
+
+describe("login codes", () => {
+  it("stops sending texts once the hourly cap for the whole server is hit", async () => {
+    const { sendLoginCode } = await import("@/server/auth");
+    const cap = env.loginCodesPerHour;
+    env.loginCodesPerHour = 3;
+    try {
+      const expiresAt = new Date(Date.now() + 600_000);
+      await db.insert(t.loginCodes).values(["+14155550001", "+14155550002", "+14155550003"].map((phone) => ({ phone, codeHash: "x", expiresAt })));
+      await expect(sendLoginCode("+14155550004")).rejects.toThrow(/a lot of sign-ins/);
+      await db.delete(t.loginCodes);
+      await expect(sendLoginCode("+14155550004")).resolves.toBeUndefined();
+    } finally {
+      env.loginCodesPerHour = cap;
+    }
+  });
+});

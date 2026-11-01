@@ -128,7 +128,7 @@ export default function MeScreen() {
         </Group>
       )}
 
-      <Card style={{ paddingVertical: 4 }}>
+      <Card style={{ paddingTop: 0, paddingBottom: 4, overflow: "hidden" }}>
         <Row label="Where you play" value={u.area ? `${u.area.label} · ${u.area.miles} mi` : "San Francisco · 10 mi"} onPress={() => router.push("/explore")} />
         <Row
           label="Notifications"

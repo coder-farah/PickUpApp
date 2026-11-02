@@ -57,6 +57,14 @@ export async function sendLoginCode(phone: string) {
     .where(and(eq(t.loginCodes.phone, phone), gt(t.loginCodes.createdAt, new Date(Date.now() - 15 * 60_000))));
   if (isDemo(phone)) return;
   if ((recent[0]?.n ?? 0) >= 5) throw new AuthError("Too many codes requested. Try again in 15 minutes.");
+  const [all] = await db
+    .select({ n: dsql<number>`count(*)::int` })
+    .from(t.loginCodes)
+    .where(gt(t.loginCodes.createdAt, new Date(Date.now() - 60 * 60_000)));
+  if ((all?.n ?? 0) >= env.loginCodesPerHour) {
+    console.error(`[login] hourly cap of ${env.loginCodesPerHour} codes reached; refusing ${phone.slice(0, 5)}…`);
+    throw new AuthError("We're getting a lot of sign-ins right now. Try again in a few minutes, or use Sign in with Apple.");
+  }
 
   const expiresAt = new Date(Date.now() + CODE_MINUTES * 60_000);
   if (verifyConfigured()) {

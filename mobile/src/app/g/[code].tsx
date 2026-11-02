@@ -83,7 +83,7 @@ export default function GameScreen() {
           <Disp size={50} color="#FFFFFF" style={{ marginTop: 12 }}>
             {g.title}
           </Disp>
-          <Mono size={12} color="rgba(255,255,255,0.6)" style={{ marginTop: 10 }}>
+          <Mono size={12} color={g.fieldPhoto ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.6)"} style={{ marginTop: 10 }}>
             {g.timeRange}
           </Mono>
           <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12, marginTop: 24 }}>

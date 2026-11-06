@@ -15,6 +15,7 @@ import { keys } from "@/api/hooks";
 import type { CrewView, GameDetailView } from "@/api/types";
 import { PUSH_ACTIONS, gameCodeFrom, refreshPushRegistration, registerPushActions, type PushAction } from "@/lib/push";
 import { ErrorView } from "@/components/ui";
+import { SignInPopup } from "@/components/SignInPopup";
 import { keepSaved, restoreSaved } from "@/lib/cache";
 import { setSignedIn, takeIntent } from "@/lib/intent";
 import { useTheme } from "@/theme";
@@ -150,6 +151,7 @@ function Navigator() {
           <Stack.Screen name="inbox" />
         </Stack.Protected>
       </Stack>
+      <SignInPopup />
     </>
   );
 }

@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/server/auth";
 import { api } from "@/server/api";
 import { listDiscover, listNearbyGroups } from "@/server/queries";
 import { cardView, crewCardView } from "@/server/views";
+import { fieldPhotos } from "@/server/field-photo";
 import { clampMiles, DEFAULT_MILES, DEFAULT_PLACE, placeFromParams, type Place } from "@/lib/geo";
 import { dayKey } from "@/lib/time";
 import type { DiscoverView } from "@/lib/api-types";
@@ -23,5 +24,6 @@ export const GET = api(async (req): Promise<DiscoverView> => {
     miles,
     games: shown.map((g) => cardView(g, now)),
     crews: crews.map((c) => crewCardView(c)),
+    photos: fieldPhotos(games),
   };
 });

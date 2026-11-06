@@ -212,6 +212,8 @@ export type HomeView = {
   area: { label: string; short: string; miles: number };
   crews: CrewCardView[];
   unread: number;
+  /** Field photos near you for the hero slideshow when there's no next game. */
+  photos: FieldPhotoView[];
 };
 
 export type DiscoverView = {
@@ -219,7 +221,11 @@ export type DiscoverView = {
   miles: number;
   games: GameCardView[];
   crews: CrewCardView[];
+  /** Field photos from these games, for the hero slideshow. */
+  photos: FieldPhotoView[];
 };
+
+export type FieldPhotoView = { url: string; credit: string | null };
 
 /** `kind` picks the icon; `at` (ISO) lets the app group by day. */
 export type InboxItemView = { id: string; kind: string; title: string; body: string; url: string | null; read: boolean; ago: string; at: string };

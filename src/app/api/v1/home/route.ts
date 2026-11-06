@@ -2,7 +2,7 @@ import { api, needUser } from "@/server/api";
 import { crewStats } from "@/server/crews";
 import { getHome, listDiscover, unreadCount, waitlistPosition } from "@/server/queries";
 import { cardView, crewCardView } from "@/server/views";
-import { fieldPhoto } from "@/server/field-photo";
+import { fieldPhoto, fieldPhotos } from "@/server/field-photo";
 import { DEFAULT_MILES, DEFAULT_PLACE } from "@/lib/geo";
 import { roomNote } from "@/lib/game-state";
 import { DEFAULT_TZ, dayKey, fmtDay, inZone } from "@/lib/time";
@@ -72,5 +72,6 @@ export const GET = api(async (): Promise<HomeView> => {
       crewCardView({ group, role, members: stats.get(group.id)?.members ?? 1, schedules: stats.get(group.id)?.schedules }),
     ),
     unread,
+    photos: fieldPhotos(nearby),
   };
 });

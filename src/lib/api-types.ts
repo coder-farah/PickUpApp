@@ -225,7 +225,8 @@ export type DiscoverView = {
   photos: FieldPhotoView[];
 };
 
-export type FieldPhotoView = { url: string; credit: string | null };
+/** A field photo for the home slideshow: the field, its games this week, and the soonest game to open. */
+export type FieldPhotoView = { url: string; credit: string | null; field: string; games: number; code: string };
 
 /** `kind` picks the icon; `at` (ISO) lets the app group by day. */
 export type InboxItemView = { id: string; kind: string; title: string; body: string; url: string | null; read: boolean; ago: string; at: string };

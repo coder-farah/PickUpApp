@@ -36,18 +36,21 @@ export function fieldPhoto(field: { locationName: string; lat: number | null; ln
 }
 
 /**
- * Field photos for a slideshow behind a hero: one per field, our own photos first, at most `max`.
+ * Field photos for a slideshow behind a hero: one per field, our own photos first, at most `max`. Each carries the
+ * field's name, how many of `games` (soonest first) are there, and the soonest one's code to open.
  */
-export function fieldPhotos(fields: { locationName: string; lat: number | null; lng: number | null }[], max = 6, fixes = FIELD_FIXES) {
-  const seen = new Set<string>();
-  const out: { url: string; credit: string | null }[] = [];
-  for (const f of fields) {
-    const key = f.locationName.trim().toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const photo = fieldPhoto(f, fixes);
-    if (photo) out.push(photo);
+export function fieldPhotos(games: { code: string; locationName: string; lat: number | null; lng: number | null }[], max = 6, fixes = FIELD_FIXES) {
+  const byField = new Map<string, { url: string; credit: string | null; field: string; games: number; code: string }>();
+  for (const g of games) {
+    const key = g.locationName.trim().toLowerCase();
+    const seen = byField.get(key);
+    if (seen) {
+      seen.games++;
+      continue;
+    }
+    const photo = fieldPhoto(g, fixes);
+    if (photo) byField.set(key, { ...photo, field: g.locationName.trim(), games: 1, code: g.code });
   }
   const own = (p: { credit: string | null }) => (p.credit === MAPBOX_CREDIT ? 1 : 0);
-  return out.sort((a, b) => own(a) - own(b)).slice(0, max);
+  return [...byField.values()].sort((a, b) => own(a) - own(b)).slice(0, max);
 }

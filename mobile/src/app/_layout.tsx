@@ -12,10 +12,11 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { api } from "@/api/client";
 import { keys } from "@/api/hooks";
-import type { GameDetailView } from "@/api/types";
+import type { CrewView, GameDetailView } from "@/api/types";
 import { PUSH_ACTIONS, gameCodeFrom, refreshPushRegistration, registerPushActions, type PushAction } from "@/lib/push";
 import { ErrorView } from "@/components/ui";
 import { keepSaved, restoreSaved } from "@/lib/cache";
+import { setSignedIn, takeIntent } from "@/lib/intent";
 import { useTheme } from "@/theme";
 
 void SplashScreen.preventAutoHideAsync();
@@ -69,6 +70,31 @@ function Navigator() {
   const { c, isDark } = useTheme();
   const signedIn = status === "signedIn";
   const onboarded = signedIn && (user?.onboarded ?? true);
+  setSignedIn(signedIn);
+  const ready = signedIn && onboarded;
+
+  // A guest who tapped RSVP or Join and then signed in: finish that tap and take them back to it.
+  useEffect(() => {
+    if (!ready) return;
+    const intent = takeIntent();
+    if (!intent) return;
+    void (async () => {
+      try {
+        if (intent.game) {
+          const code = intent.game.code;
+          queryClient.setQueryData(keys.game(code), await api<GameDetailView>(`/api/v1/games/${encodeURIComponent(code)}/join`, { body: {} }));
+        }
+        if (intent.crew) {
+          const crew = await api<CrewView>(`/api/v1/crews/${encodeURIComponent(intent.crew.slug)}/join`, { body: {} });
+          queryClient.setQueryData(keys.crew(crew.crew.slug), crew);
+        }
+        void queryClient.invalidateQueries({ queryKey: keys.home });
+      } catch (err) {
+        Alert.alert("Couldn't do that", (err as Error).message);
+      }
+      router.navigate(intent.path as never);
+    })();
+  }, [ready]);
 
   useEffect(() => {
     if (status !== "loading") void SplashScreen.hideAsync();
@@ -106,18 +132,21 @@ function Navigator() {
     <>
       <StatusBar style={isDark ? "light" : "dark"} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }}>
+        {/* Guests can look around: games, crews and the tabs. Signing in is asked for when they tap something that needs it. */}
+        <Stack.Protected guard={!signedIn || onboarded}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="g/[code]" />
+          <Stack.Screen name="groups/[slug]" />
+          <Stack.Screen name="join/[invite]" />
+        </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
-          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(auth)" options={{ presentation: "modal" }} />
         </Stack.Protected>
         <Stack.Protected guard={signedIn && !onboarded}>
           <Stack.Screen name="welcome" />
         </Stack.Protected>
-        <Stack.Protected guard={signedIn && onboarded}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="g/[code]" />
+        <Stack.Protected guard={ready}>
           <Stack.Screen name="edit/[code]" />
-          <Stack.Screen name="groups/[slug]" />
-          <Stack.Screen name="join/[invite]" />
           <Stack.Screen name="inbox" />
         </Stack.Protected>
       </Stack>

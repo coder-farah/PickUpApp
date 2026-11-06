@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, View } from "react-native";
 import { api } from "@/api/client";
 import type { PlaceView } from "@/api/types";
+import { useAuth } from "@/lib/auth";
 import { currentPlace, MILE_PRESETS, searchPlaces } from "@/lib/geo";
 import { useTheme } from "@/theme";
 import { ChevronDown, LocateFixed, MapPin, Search } from "./icons";
@@ -11,6 +12,7 @@ import { Body, Button, Input, Mono, Notice } from "./ui";
 /** Where Explore searches: current location or a city/ZIP, plus a radius from 2 to 50 miles. */
 export function LocationPicker({ place, miles, onChange, onSaved, compact }: { place: PlaceView; miles: number; onChange: (p: PlaceView, miles: number) => void; onSaved?: () => void; compact?: boolean }) {
   const { c } = useTheme();
+  const signedIn = useAuth().status === "signedIn";
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [results, setResults] = useState<PlaceView[]>([]);
@@ -90,7 +92,7 @@ export function LocationPicker({ place, miles, onChange, onSaved, compact }: { p
           </View>
         </View>
         <View style={{ flexDirection: "row", gap: 10 }}>
-          <Button
+          {signedIn && <Button
             title="Save as my area"
             variant="secondary"
             style={{ flex: 1 }}
@@ -100,7 +102,7 @@ export function LocationPicker({ place, miles, onChange, onSaved, compact }: { p
               onSaved?.();
               setOpen(false);
             }}
-          />
+          />}
           <Button title="Show games" style={{ flex: 1 }} onPress={() => (onChange(draft.place, draft.miles), setOpen(false))} />
         </View>
       </Sheet>

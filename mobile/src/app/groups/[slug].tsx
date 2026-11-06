@@ -2,6 +2,7 @@ import { Alert, Pressable, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useCrew, useCrewAction, useCrewRole } from "@/api/hooks";
 import { useAuth } from "@/lib/auth";
+import { needsSignIn } from "@/lib/intent";
 import { showMenu } from "@/lib/menu";
 import { shareLink } from "@/lib/share";
 import { Avatar } from "@/components/Avatar";
@@ -65,7 +66,7 @@ export default function CrewScreen() {
                 </Body>
               </View>
             ) : (
-              <Button title="Join the crew" variant="lime" loading={act.isPending} onPress={() => act.mutate({ action: "join" }, { onError: (e) => Alert.alert("Couldn't join", e.message) })} />
+              <Button title="Join the crew" variant="lime" loading={act.isPending} onPress={() => needsSignIn({ path: `/groups/${slug}`, crew: { slug } }) || act.mutate({ action: "join" }, { onError: (e) => Alert.alert("Couldn't join", e.message) })} />
             )}
           </View>
         </NightHero>

@@ -12,6 +12,8 @@ import { Body, Button, Disp, Field, Input, Mono, Page, Segmented, SwitchRow } fr
 import * as Haptics from "expo-haptics";
 import { ChevronDown, Repeat } from "@/components/icons";
 import { useTheme } from "@/theme";
+import { useAuth } from "@/lib/auth";
+import { SignInPrompt } from "@/components/SignInPrompt";
 
 const LENGTHS = [
   { value: 60, label: "1 hr" },
@@ -54,6 +56,17 @@ function More({ summary, children }: { summary: string; children: ReactNode }) {
 }
 
 export default function HostScreen() {
+  const signedIn = useAuth().status === "signedIn";
+  if (!signedIn)
+    return (
+      <SignInPrompt eyebrow="Host" title="Post a game">
+        Pick a time and a field, then share the link. Players RSVP with a tap and you always know who&apos;s coming. Sign in to host.
+      </SignInPrompt>
+    );
+  return <HostForm />;
+}
+
+function HostForm() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ type?: string; from?: string }>();
   const { c } = useTheme();

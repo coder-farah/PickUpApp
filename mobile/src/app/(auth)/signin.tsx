@@ -59,6 +59,11 @@ export default function Login() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <LogoMark size={28} />
           <Text style={{ fontFamily: fonts.semibold, fontSize: 19, color: "#FFFFFF", letterSpacing: -0.5 }}>pitchin</Text>
+          <View style={{ flex: 1 }} />
+          {/* Guests can back out and keep looking around. */}
+          <Body weight="medium" size={15} color="rgba(255,255,255,0.7)" onPress={() => (router.canGoBack() ? router.back() : router.replace("/explore"))}>
+            Not now
+          </Body>
         </View>
         <View style={{ flex: 1 }} />
         <Disp size={76} color="#FFFFFF">

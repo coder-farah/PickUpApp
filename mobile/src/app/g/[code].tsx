@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { API_URL, SUPPORT_EMAIL, api } from "@/api/client";
 import { keys, useCrewAction, useGame, useGameAction, type GameAction } from "@/api/hooks";
+import { needsSignIn } from "@/lib/intent";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CohostCandidatesView, GameDetailView, RosterView } from "@/api/types";
 import { useCountdown } from "@/lib/countdown";
@@ -47,6 +48,7 @@ export default function GameScreen() {
   const capped = g.capacity !== null;
 
   const run: Run = async (action, body = {}, done, then) => {
+    if (needsSignIn({ path: `/g/${code}`, game: action === "join" ? { code } : undefined })) return;
     setNotice(null);
     try {
       await act.mutateAsync({ action, ...body });
@@ -556,7 +558,7 @@ function JoinCrewCard({ slug, name }: { slug: string; name: string }) {
       {join.isSuccess ? (
         <Notice tone="pitch">You joined {name}.</Notice>
       ) : (
-        <Button title="Join the crew" variant="secondary" loading={join.isPending} onPress={() => join.mutate({ action: "join" }, { onError: (e) => Alert.alert("Couldn't join", e.message) })} />
+        <Button title="Join the crew" variant="secondary" loading={join.isPending} onPress={() => needsSignIn({ path: `/groups/${slug}`, crew: { slug } }) || join.mutate({ action: "join" }, { onError: (e) => Alert.alert("Couldn't join", e.message) })} />
       )}
     </Card>
   );

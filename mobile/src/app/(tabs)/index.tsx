@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Animated, ScrollView, View, useWindowDimensions, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import { useGameAction, useHome } from "@/api/hooks";
+import { useDiscover, useGameAction, useHome } from "@/api/hooks";
+import { useAuth } from "@/lib/auth";
+import { askToSignIn } from "@/lib/intent";
 import type { GameCardView, NextUpView } from "@/api/types";
 import { useCountdown } from "@/lib/countdown";
 import { Faces } from "@/components/Avatar";
@@ -18,6 +20,68 @@ import { Pressable } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 export default function HomeScreen() {
+  const { status } = useAuth();
+  return status === "signedIn" ? <SignedInHome /> : <GuestHome />;
+}
+
+/** Before signing in: what Pitchin is, and the games open nearby. Tapping RSVP on one asks them to sign in. */
+function GuestHome() {
+  const { c } = useTheme();
+  const { data, isLoading, error, refetch, isRefetching } = useDiscover({});
+  return (
+    <View style={{ flex: 1, backgroundColor: c.bg }}>
+      <TopBar night />
+      <Page refreshing={isRefetching} onRefresh={() => void refetch()}>
+        <NightHero>
+          <View style={{ marginTop: 8, gap: 16 }}>
+            <Disp size={64} color="#FFFFFF">
+              Find a game.{"\n"}Show up.{"\n"}
+              <Disp size={64} color={c.lime}>
+                Play.
+              </Disp>
+            </Disp>
+            <Body size={15} color="rgba(255,255,255,0.6)">
+              Pickup games near you, with a spot saved the moment you tap in. Look around, then sign in when you want in.
+            </Body>
+            <View style={{ flexDirection: "row", gap: 12 }}>
+              <Button title="Sign in" variant="lime" onPress={() => askToSignIn()} />
+              <Button title="Explore games" variant="outlineNight" onPress={() => router.push("/explore")} />
+            </View>
+          </View>
+        </NightHero>
+        <View style={{ marginTop: -84, paddingHorizontal: 16 }}>
+          <SectionTitle
+            action={
+              data ? (
+                <Pressable onPress={() => router.push("/explore")} style={{ flexDirection: "row", alignItems: "center", gap: 6, height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: c.surface }}>
+                  <MapPin size={12} color={c.ink2} />
+                  <Mono size={11} color={c.ink2}>
+                    {data.place.label} · {data.miles} mi
+                  </Mono>
+                </Pressable>
+              ) : undefined
+            }
+          >
+            Open near you
+          </SectionTitle>
+          {isLoading ? (
+            <Loading variant="cards" />
+          ) : !data ? (
+            <ErrorView message={(error as Error)?.message ?? "Couldn't load games."} onRetry={() => void refetch()} />
+          ) : data.games.length ? (
+            <GameList games={data.games.slice(0, 12)} showDay />
+          ) : (
+            <EmptyState icon={<Search size={20} color={c.muted} />} title="Nothing open nearby" action={<Button title="Explore a wider area" onPress={() => router.push("/explore")} />}>
+              No public games in the next week near {data.place.label}.
+            </EmptyState>
+          )}
+        </View>
+      </Page>
+    </View>
+  );
+}
+
+function SignedInHome() {
   const { c } = useTheme();
   const { data, isLoading, error, refetch, isRefetching } = useHome();
   // Where the big next-game panel ends, measured once it lays out.

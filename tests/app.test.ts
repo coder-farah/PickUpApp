@@ -329,3 +329,11 @@ describe("login codes", () => {
     }
   });
 });
+
+describe("login texts abroad", () => {
+  it("only go to US numbers", async () => {
+    const { sendLoginCode } = await import("@/server/auth");
+    await expect(sendLoginCode("+447700900123")).rejects.toThrow(/US mobile numbers/);
+    await expect(sendLoginCode("+14155550123")).resolves.toBeUndefined();
+  });
+});

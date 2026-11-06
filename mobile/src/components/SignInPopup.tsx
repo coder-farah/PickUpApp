@@ -106,7 +106,7 @@ export function SignInPopup() {
             Not now
           </Body>
           <Body size={11.5} color={c.muted} style={{ textAlign: "center" }}>
-            US and Canada numbers. By continuing you agree to our{" "}
+            US numbers only. By continuing you agree to our{" "}
             <Body size={11.5} color={c.ink2} style={{ textDecorationLine: "underline" }} onPress={() => void Linking.openURL(`${API_URL}/privacy`)}>
               privacy policy
             </Body>

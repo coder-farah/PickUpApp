@@ -47,7 +47,7 @@ export default function PhoneStep() {
         />
       </Field>
       <Body size={12.5} color={c.muted}>
-        US and Canada numbers. Message and data rates may apply.
+        US numbers only. Message and data rates may apply.
       </Body>
     </FlowPage>
   );

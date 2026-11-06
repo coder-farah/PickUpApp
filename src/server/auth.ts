@@ -56,6 +56,8 @@ export async function sendLoginCode(phone: string) {
     .from(t.loginCodes)
     .where(and(eq(t.loginCodes.phone, phone), gt(t.loginCodes.createdAt, new Date(Date.now() - 15 * 60_000))));
   if (isDemo(phone)) return;
+  // US numbers only for now: texts abroad cost more and are where SMS-pumping fraud happens.
+  if (!phone.startsWith("+1")) throw new AuthError("Pitchin works with US mobile numbers for now.");
   if ((recent[0]?.n ?? 0) >= 5) throw new AuthError("Too many codes requested. Try again in 15 minutes.");
   const [all] = await db
     .select({ n: dsql<number>`count(*)::int` })

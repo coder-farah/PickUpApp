@@ -38,13 +38,20 @@ describe("field photos", () => {
     env.mapboxToken = "pk.test";
     const fixes = [{ name: "mission rec", photo: "/fields/mission-rec.jpg" }];
     const photos = fieldPhotos(
-      [dolores, { ...dolores }, { locationName: "Mission Rec Center", lat: 37.75, lng: -122.41 }, { locationName: "Nowhere", lat: null, lng: null }],
+      [
+        { ...dolores, code: "a1" },
+        { ...dolores, code: "a2" },
+        { locationName: "Mission Rec Center", lat: 37.75, lng: -122.41, code: "m1" },
+        { locationName: "Nowhere", lat: null, lng: null, code: "n1" },
+      ],
       6,
       fixes,
     );
     expect(photos).toHaveLength(2);
     expect(photos[0].url).toMatch(/\/fields\/mission-rec\.jpg$/);
+    expect(photos[0]).toMatchObject({ field: "Mission Rec Center", games: 1, code: "m1" });
     expect(photos[1].url).toContain("mapbox");
-    expect(fieldPhotos([dolores, { locationName: "Kezar", lat: 37.76, lng: -122.45 }], 1, fixes)).toHaveLength(1);
+    expect(photos[1]).toMatchObject({ field: "Dolores Park", games: 2, code: "a1" });
+    expect(fieldPhotos([{ ...dolores, code: "a1" }, { locationName: "Kezar", lat: 37.76, lng: -122.45, code: "k1" }], 1, fixes)).toHaveLength(1);
   });
 });

@@ -8,16 +8,24 @@ export type Intent = { path: string; game?: { code: string }; crew?: { slug: str
 
 let signedIn = false;
 let pending: Intent | null = null;
+let show: ((why: string) => void) | null = null;
+
+/** The root navigator's sign-in popup listens here. */
+export const onAskToSignIn = (fn: ((why: string) => void) | null) => {
+  show = fn;
+};
 
 /** Kept current by the root navigator. */
 export const setSignedIn = (v: boolean) => {
   signedIn = v;
 };
 
-/** Open sign-in, then come back and do `intent`. */
+/** Pop up sign-in, then come back and do `intent`. */
 export function askToSignIn(intent?: Intent) {
   pending = intent ?? null;
-  router.push("/signin");
+  const why = intent?.game ? "Sign in to RSVP" : intent?.crew || intent?.path.startsWith("/join/") ? "Sign in to join" : "Sign in";
+  if (show) show(why);
+  else router.push("/signin");
 }
 
 /** True (and off to sign in) when a guest tapped something that needs an account. */

@@ -19,6 +19,12 @@ export default function CodeStep() {
   const [wait, setWait] = useState(30);
   const input = useRef<TextInput>(null);
 
+  // Coming from the sign-in popup, the popup closing can take the focus; ask for the keyboard once it's gone.
+  useEffect(() => {
+    const t = setTimeout(() => input.current?.focus(), 400);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => {
     if (wait <= 0) return;
     const t = setTimeout(() => setWait((w) => w - 1), 1000);

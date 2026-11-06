@@ -32,7 +32,7 @@ function GuestHome() {
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <TopBar night />
       <Page refreshing={isRefetching} onRefresh={() => void refetch()}>
-        <NightHero>
+        <NightHero photos={data?.photos}>
           <View style={{ marginTop: 8, gap: 16 }}>
             <Disp size={64} color="#FFFFFF">
               Find a game.{"\n"}Show up.{"\n"}
@@ -119,7 +119,7 @@ function SignedInHome() {
       </TopBar>
       <PassedRows games={alsoPlaying.slice(0, MAX_ROWS)} motion={motion} top={headerBottom} />
       <Page refreshing={isRefetching} onRefresh={() => { setDropped(null); void refetch(); }} onScroll={motion.onScroll}>
-        <NightHero photo={next?.fieldPhoto} credit={next?.fieldPhotoCredit}>
+        <NightHero photo={next?.fieldPhoto} credit={next?.fieldPhotoCredit} photos={data.photos}>
           <Body size={15} color="rgba(255,255,255,0.6)">
             {data.greeting}
           </Body>

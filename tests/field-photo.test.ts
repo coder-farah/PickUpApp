@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { env } from "@/server/env";
-import { fieldPhoto } from "@/server/field-photo";
+import { fieldPhoto, fieldPhotos } from "@/server/field-photo";
 
 const dolores = { locationName: "Dolores Park", lat: 37.7596, lng: -122.4269 };
 
@@ -32,5 +32,19 @@ describe("field photos", () => {
     expect(fieldPhoto(dolores, fixes)!.url).toContain("/static/-122.42700,37.76000,19,0/");
     const own = fieldPhoto({ locationName: "Crossing at the East Cut", lat: null, lng: null }, fixes)!;
     expect(own).toEqual({ url: `${env.appUrl}/fields/east-cut.jpg`, credit: "Photo: Pitchin" });
+  });
+
+  it("make a slideshow: one photo per field, our own photos first", () => {
+    env.mapboxToken = "pk.test";
+    const fixes = [{ name: "mission rec", photo: "/fields/mission-rec.jpg" }];
+    const photos = fieldPhotos(
+      [dolores, { ...dolores }, { locationName: "Mission Rec Center", lat: 37.75, lng: -122.41 }, { locationName: "Nowhere", lat: null, lng: null }],
+      6,
+      fixes,
+    );
+    expect(photos).toHaveLength(2);
+    expect(photos[0].url).toMatch(/\/fields\/mission-rec\.jpg$/);
+    expect(photos[1].url).toContain("mapbox");
+    expect(fieldPhotos([dolores, { locationName: "Kezar", lat: 37.76, lng: -122.45 }], 1, fixes)).toHaveLength(1);
   });
 });

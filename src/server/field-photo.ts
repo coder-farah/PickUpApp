@@ -34,3 +34,20 @@ export function fieldPhoto(field: { locationName: string; lat: number | null; ln
     credit: MAPBOX_CREDIT,
   };
 }
+
+/**
+ * Field photos for a slideshow behind a hero: one per field, our own photos first, at most `max`.
+ */
+export function fieldPhotos(fields: { locationName: string; lat: number | null; lng: number | null }[], max = 6, fixes = FIELD_FIXES) {
+  const seen = new Set<string>();
+  const out: { url: string; credit: string | null }[] = [];
+  for (const f of fields) {
+    const key = f.locationName.trim().toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const photo = fieldPhoto(f, fixes);
+    if (photo) out.push(photo);
+  }
+  const own = (p: { credit: string | null }) => (p.credit === MAPBOX_CREDIT ? 1 : 0);
+  return out.sort((a, b) => own(a) - own(b)).slice(0, max);
+}

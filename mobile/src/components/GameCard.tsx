@@ -3,6 +3,7 @@ import { Alert, Pressable, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { useGameAction } from "@/api/hooks";
+import { needsSignIn } from "@/lib/intent";
 import { Repeat } from "./icons";
 import { Badge, Body, Card, Disp, Mono } from "./ui";
 import { useTheme } from "@/theme";
@@ -77,6 +78,7 @@ function RsvpChip({ game }: { game: GameCardView }) {
   const [sent, setSent] = useState(false);
   useEffect(() => setSent(false), [game.my]);
   const join = async () => {
+    if (needsSignIn({ path: `/g/${game.code}`, game: { code: game.code } })) return;
     setSent(true);
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     try {

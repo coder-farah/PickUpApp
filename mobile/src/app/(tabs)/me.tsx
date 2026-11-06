@@ -14,6 +14,7 @@ import { ChevronRight } from "@/components/icons";
 import { ProfileFields, type ProfileDraft } from "@/components/ProfileFields";
 import { Body, Button, Card, Disp, Loading, Mono, Notice, Page, SwitchRow } from "@/components/ui";
 import { useTheme } from "@/theme";
+import { SignInPrompt } from "@/components/SignInPrompt";
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -25,6 +26,17 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 }
 
 export default function MeScreen() {
+  const signedIn = useAuth().status === "signedIn";
+  if (!signedIn)
+    return (
+      <SignInPrompt eyebrow="You" title="Your games, in one place">
+        Sign in to RSVP, save your spot, get a heads-up when a spot opens, and keep track of the games you play.
+      </SignInPrompt>
+    );
+  return <Profile />;
+}
+
+function Profile() {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   const qc = useQueryClient();

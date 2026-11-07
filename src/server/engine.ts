@@ -13,6 +13,15 @@ import type { Game, Spot } from "./db/schema";
 
 export class GameError extends Error {}
 
+/** A host who blocked someone doesn't get them on the roster. The message stays neutral on purpose. */
+export async function assertNotBlocked(tx: Tx | typeof db, hostId: string, userId: string) {
+  const [b] = await tx
+    .select({ id: t.blocks.blockerId })
+    .from(t.blocks)
+    .where(and(eq(t.blocks.blockerId, hostId), eq(t.blocks.blockedId, userId)));
+  if (b) throw new GameError("You can't join this one.");
+}
+
 const MAX_GUESTS_PER_PLAYER = 2;
 
 async function lockGame(tx: Tx, gameId: string): Promise<Game> {
@@ -87,6 +96,7 @@ export async function join(gameId: string, userId: string, now = new Date()) {
   return db.transaction(async (tx) => {
     const g = await lockGame(tx, gameId);
     assertRsvpOpen(g, now);
+    await assertNotBlocked(tx, g.hostId, userId);
 
     const [existing] = await tx
       .select()

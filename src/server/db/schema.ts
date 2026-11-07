@@ -59,6 +59,17 @@ export const sessions = pgTable(
   (t) => [index("sessions_user_idx").on(t.userId)],
 );
 
+/** Players someone has blocked: they can't join the blocker's games or crews, and their games are hidden from the blocker. */
+export const blocks = pgTable(
+  "blocks",
+  {
+    blockerId: uuid("blocker_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    blockedId: uuid("blocked_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.blockerId, t.blockedId] }), index("blocks_blocked_idx").on(t.blockedId)],
+);
+
 /** Login codes for development and as a fallback when Twilio Verify isn't configured. */
 export const loginCodes = pgTable(
   "login_codes",

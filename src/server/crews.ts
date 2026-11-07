@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, sql as dsql } from "drizzle-orm";
 import { db, t } from "./db";
-import { GameError } from "./engine";
+import { assertNotBlocked, GameError } from "./engine";
 import { queueNotifications } from "./notify";
 import type { SessionUser } from "./auth";
 
@@ -13,6 +13,11 @@ export async function joinCrew(userId: string, slugOrNull: string | null, invite
   if (target.visibility === "private" && target.inviteCode !== invite) {
     throw new GameError("This group is invite-only. Ask an organizer for the link.");
   }
+  const organizers = await db
+    .select({ id: t.groupMembers.userId })
+    .from(t.groupMembers)
+    .where(and(eq(t.groupMembers.groupId, target.id), eq(t.groupMembers.role, "organizer")));
+  for (const o of organizers) await assertNotBlocked(db, o.id, userId);
   await db.insert(t.groupMembers).values({ groupId: target.id, userId }).onConflictDoNothing();
   return target;
 }

@@ -12,6 +12,7 @@ import { shareLink } from "@/lib/share";
 import { openDirections } from "@/lib/directions";
 import { addToCalendar } from "@/lib/calendar";
 import { showMenu } from "@/lib/menu";
+import { playerMenu } from "@/lib/player-menu";
 import { Avatar, Faces } from "@/components/Avatar";
 import { Check, ChevronDown, MapPin, Repeat, UserPlus, X } from "@/components/icons";
 import { NightHero } from "@/components/NightHero";
@@ -40,12 +41,14 @@ export default function GameScreen() {
   const [notice, setNotice] = useState<Toast | null>(null);
   const [rules, setRules] = useState(false);
   const [managing, setManaging] = useState(false);
+  const qc = useQueryClient();
 
   if (isLoading) return <Loading variant="hero" />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load this game."} onRetry={() => void refetch()} />;
   const g = data.game;
   const [count, of] = g.going.split("/");
   const capped = g.capacity !== null;
+  const onPlayer = (p: { id: string; name: string }) => playerMenu(p, data.blocked.includes(p.id), `/g/${code}`, qc);
 
   const run: Run = async (action, body = {}, done, then) => {
     if (needsSignIn({ path: `/g/${code}`, game: action === "join" ? { code } : undefined })) return;
@@ -143,13 +146,18 @@ export default function GameScreen() {
               </Pressable>
               <Button title="Directions" size="sm" variant="secondary" onPress={() => openDirections(g)} />
             </View>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+            <Pressable
+              disabled={data.canHandOff}
+              onPress={() => onPlayer(data.host)}
+              accessibilityRole="button"
+              style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+            >
               <Avatar name={data.host.name} seed={data.host.id} photo={data.host.photo} size={18} />
               <Body color={c.ink2} style={{ flex: 1 }}>
                 Hosted by {data.host.name}
                 {data.cohosts.length ? ` with ${listNames(data.cohosts.map((h) => h.name))}` : ""}
               </Body>
-            </View>
+            </Pressable>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
               <Check size={16} color={g.inCount >= g.minPlayers ? c.pitch : c.muted} />
               <Body color={c.ink2}>
@@ -200,7 +208,7 @@ export default function GameScreen() {
             {data.playing.length === 0 ? (
               <Body color={c.muted}>Nobody yet. Be the first one in.</Body>
             ) : (
-              data.playing.map((s, i) => <RosterRow key={s.spotId} spot={s} index={`${i + 1}`} canManage={managing} onRemove={() => confirmRemove(s, run)} />)
+              data.playing.map((s, i) => <RosterRow key={s.spotId} spot={s} index={`${i + 1}`} canManage={managing} onRemove={() => confirmRemove(s, run)} onPress={() => onPlayer({ id: s.userId, name: s.name })} />)
             )}
           </View>
 
@@ -208,7 +216,7 @@ export default function GameScreen() {
             <View>
               <SectionTitle action={<Mono>{data.queue.length} in line</Mono>}>Waitlist</SectionTitle>
               {data.queue.map((s, i) => (
-                <RosterRow key={s.spotId} spot={s} index={`#${i + 1}`} canManage={managing} onRemove={() => confirmRemove(s, run)} />
+                <RosterRow key={s.spotId} spot={s} index={`#${i + 1}`} canManage={managing} onRemove={() => confirmRemove(s, run)} onPress={() => onPlayer({ id: s.userId, name: s.name })} />
               ))}
             </View>
           )}
@@ -328,11 +336,17 @@ function confirmRemove(s: RosterView, run: Run) {
   ]);
 }
 
-function RosterRow({ spot, index, canManage, onRemove }: { spot: RosterView; index: string; canManage: boolean; onRemove: () => void }) {
+function RosterRow({ spot, index, canManage, onRemove, onPress }: { spot: RosterView; index: string; canManage: boolean; onRemove: () => void; onPress: () => void }) {
   const { c } = useTheme();
   const left = useCountdown(spot.offerExpiresAt);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: c.line }}>
+    <Pressable
+      disabled={spot.isMe || !!spot.broughtBy}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={spot.name}
+      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderColor: c.line, opacity: pressed ? 0.6 : 1 })}
+    >
       <Mono size={11} style={{ width: 24, textAlign: "center" }}>
         {index}
       </Mono>
@@ -360,7 +374,7 @@ function RosterRow({ spot, index, canManage, onRemove }: { spot: RosterView; ind
           <X size={16} color={c.muted} />
         </Pressable>
       )}
-    </View>
+    </Pressable>
   );
 }
 

@@ -2,6 +2,7 @@ import "server-only";
 import { and, asc, desc, eq, gt, inArray, isNotNull, lte, ne, or, sql as dsql, type AnyColumn, type SQL } from "drizzle-orm";
 import { db, t } from "./db";
 import { isOwner } from "./engine";
+import { notBlockedBy } from "./blocks";
 import type { Game, Group, Sport, Spot } from "./db/schema";
 import type { Face } from "@/components/Avatar";
 
@@ -38,7 +39,8 @@ export type GameCardData = Game & {
 const upcomingStatuses = ["scheduled", "open", "on"] as const;
 
 /** Public games in the next week, soonest first. With `near`, only games inside that radius. */
-export async function listDiscover(opts: { sport?: Sport; now?: Date; near?: Near; days?: number; limit?: number } = {}) {
+/** `viewerId` hides games hosted by people they blocked. */
+export async function listDiscover(opts: { sport?: Sport; now?: Date; near?: Near; days?: number; limit?: number; viewerId?: string | null } = {}) {
   const now = opts.now ?? new Date();
   const until = new Date(now.getTime() + (opts.days ?? 8) * 86_400_000);
   const dist = opts.near ? milesFrom(t.games.lat, t.games.lng, opts.near) : null;
@@ -60,6 +62,7 @@ export async function listDiscover(opts: { sport?: Sport; now?: Date; near?: Nea
         lte(t.games.startsAt, until),
         opts.sport ? eq(t.games.sport, opts.sport) : undefined,
         dist && opts.near ? and(isNotNull(t.games.lat), lte(dist, opts.near.miles)) : undefined,
+        opts.viewerId ? notBlockedBy(opts.viewerId, t.games.hostId) : undefined,
       ),
     )
     .orderBy(asc(t.games.startsAt))

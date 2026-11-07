@@ -157,6 +157,7 @@ export function gameDetailView(p: GamePageData, viewerId: string | null, now = n
     },
     host: face({ id: p.host.id, name: p.host.name, v: p.host.v }),
     cohosts: p.cohosts.map(face),
+    blocked: [],
     playing: p.playing.map(roster),
     queue: g.capacity === null ? [] : p.queue.map(roster),
     me: p.myMain

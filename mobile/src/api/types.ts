@@ -101,6 +101,8 @@ export type GameDetailView = {
   host: FaceView;
   /** People who run the game with the host */
   cohosts: FaceView[];
+  /** People on this page the viewer has blocked (host or roster). */
+  blocked: string[];
   playing: RosterView[];
   /** Waitlist in order. Empty for games without a cap. */
   queue: RosterView[];

@@ -21,7 +21,7 @@ export const GET = api(async (): Promise<HomeView> => {
     user.areaLat != null && user.areaLng != null
       ? { label: user.areaLabel ?? "Your area", lat: user.areaLat, lng: user.areaLng, miles: user.areaMiles }
       : { ...DEFAULT_PLACE, miles: DEFAULT_MILES };
-  const [home, nearby, unread] = await Promise.all([getHome(user.id, now), listDiscover({ now, near: area, limit: 40 }), unreadCount(user.id)]);
+  const [home, nearby, unread] = await Promise.all([getHome(user.id, now), listDiscover({ now, near: area, limit: 40, viewerId: user.id }), unreadCount(user.id)]);
 
   const upcoming = home.cards.filter((c) => c.startsAt > now && c.status !== "cancelled");
   const next =

@@ -16,7 +16,7 @@ export const GET = api(async (req): Promise<DiscoverView> => {
   const place = placeFromParams(p, saved ?? DEFAULT_PLACE);
   const miles = p.r ? clampMiles(p.r) : saved && !p.lat ? user!.areaMiles : DEFAULT_MILES;
   const now = new Date();
-  const [games, crews] = await Promise.all([listDiscover({ now, near: { ...place, miles } }), listNearbyGroups({ ...place, miles })]);
+  const [games, crews] = await Promise.all([listDiscover({ now, near: { ...place, miles }, viewerId: user?.id }), listNearbyGroups({ ...place, miles })]);
   const day = p.day && /^\d{4}-\d{2}-\d{2}$/.test(p.day) ? p.day : null;
   const shown = day ? games.filter((g) => dayKey(g.startsAt, g.timezone) === day) : games;
   return {

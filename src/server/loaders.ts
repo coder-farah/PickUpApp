@@ -2,13 +2,17 @@ import "server-only";
 import { ApiError } from "./api";
 import { env } from "./env";
 import { getGamePage, getGroupPage } from "./queries";
+import { blockedBy } from "./blocks";
 import { cardView, crewCardView, face, gameDetailView, scheduleLabel } from "./views";
 import type { CrewView, GameDetailView } from "@/lib/api-types";
 
 export async function loadGame(code: string, viewerId: string | null): Promise<GameDetailView> {
   const page = await getGamePage(code, viewerId);
   if (!page) throw new ApiError(404, "This game doesn't exist.");
-  return gameDetailView(page, viewerId);
+  const view = gameDetailView(page, viewerId);
+  const mine = await blockedBy(viewerId);
+  const here = [view.host, ...view.playing, ...view.queue].map((x) => ("userId" in x ? x.userId : x.id));
+  return { ...view, blocked: [...new Set(here.filter((id) => mine.has(id)))] };
 }
 
 export async function loadCrew(slug: string, viewerId: string | null): Promise<CrewView> {

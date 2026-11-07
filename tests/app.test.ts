@@ -349,3 +349,28 @@ describe("when Twilio won't send", () => {
     expect(textFailedMessage(new Error("network"))).toMatch(/couldn't send a text/);
   });
 });
+
+describe("blocking a player", () => {
+  it("keeps them off your games and crews, hides their games, and can be undone", async () => {
+    const { blockPlayer, unblockPlayer } = await import("@/server/blocks");
+    const { loadGame } = await import("@/server/loaders");
+    const { listDiscover } = await import("@/server/queries");
+    const now = new Date();
+    const [me, them] = [await makeUser("Me"), await makeUser("Them")];
+    const mine = await makeGame(me, now, { visibility: "public" });
+    const theirs = await makeGame(them, now, { visibility: "public" });
+    const { slug } = await createCrew(me, { name: "Block 7s", locationName: "Kezar", weekday: 2, startTime: "19:00", rules: { capacity: 14, minPlayers: 10, claimMinutes: 30, guestsAllowed: false } });
+
+    await blockPlayer(me.id, them.id);
+    await expect(join(mine.id, them.id, now)).rejects.toThrow(/can't join/);
+    await expect(joinCrew(them.id, slug, null)).rejects.toThrow(/can't join/);
+    expect((await listDiscover({ now, viewerId: me.id })).some((g) => g.id === theirs.id)).toBe(false);
+    expect((await listDiscover({ now, viewerId: them.id })).some((g) => g.id === mine.id)).toBe(true);
+    expect((await loadGame(theirs.code, me.id)).blocked).toEqual([them.id]);
+    await expect(blockPlayer(me.id, me.id)).rejects.toThrow(/yourself/);
+
+    await unblockPlayer(me.id, them.id);
+    await expect(join(mine.id, them.id, now)).resolves.toMatchObject({ changed: true });
+    expect((await listDiscover({ now, viewerId: me.id })).some((g) => g.id === theirs.id)).toBe(true);
+  });
+});

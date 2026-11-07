@@ -329,3 +329,23 @@ describe("login codes", () => {
     }
   });
 });
+
+describe("login texts abroad", () => {
+  it("only go to US numbers", async () => {
+    const { sendLoginCode } = await import("@/server/auth");
+    await expect(sendLoginCode("+447700900123")).rejects.toThrow(/US mobile numbers/);
+    await expect(sendLoginCode("+14155550123")).resolves.toBeUndefined();
+  });
+});
+
+describe("when Twilio won't send", () => {
+  it("says why in plain words instead of 'something went wrong'", async () => {
+    const { textFailedMessage } = await import("@/server/auth");
+    const { TwilioError } = await import("@/server/twilio");
+    expect(textFailedMessage(new TwilioError("x", 400, 60200))).toMatch(/valid mobile number/);
+    expect(textFailedMessage(new TwilioError("x", 400, 60205))).toMatch(/can't get texts/);
+    expect(textFailedMessage(new TwilioError("x", 403, 60605))).toMatch(/US mobile numbers/);
+    expect(textFailedMessage(new TwilioError("x", 403))).toMatch(/couldn't send a text/);
+    expect(textFailedMessage(new Error("network"))).toMatch(/couldn't send a text/);
+  });
+});

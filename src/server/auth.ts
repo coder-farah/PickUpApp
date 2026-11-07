@@ -6,7 +6,7 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto
 import { and, desc, eq, getTableColumns, gt, isNull, sql as dsql } from "drizzle-orm";
 import { db, t } from "./db";
 import { env, verifyConfigured } from "./env";
-import { checkVerification, startVerification } from "./twilio";
+import { checkVerification, startVerification, TwilioError } from "./twilio";
 import { normalizePhone } from "@/lib/phone";
 
 const COOKIE = "pitchin_session";
@@ -17,6 +17,16 @@ const DEV_CODE = "000000";
 const sha256 = (v: string) => createHash("sha256").update(v).digest("hex");
 
 export class AuthError extends Error {}
+
+/** What to tell someone when Twilio won't send their code. The full reason stays in the server log. */
+export function textFailedMessage(e: unknown) {
+  const code = e instanceof TwilioError ? e.code : undefined;
+  if (code === 60200 || code === 21211) return "That doesn't look like a valid mobile number.";
+  if (code === 60205) return "That number can't get texts. Use a mobile number, or Sign in with Apple.";
+  if (code === 60203) return "Too many codes requested. Try again in 15 minutes.";
+  if (code === 60410 || code === 60605) return "Pitchin works with US mobile numbers for now.";
+  return "We couldn't send a text right now. Try again in a bit, or use Sign in with Apple.";
+}
 
 // Everything about a user except the photo bytes.
 const { avatar: _avatar, appleRefreshToken: _apple, ...userCols } = getTableColumns(t.users);
@@ -56,6 +66,8 @@ export async function sendLoginCode(phone: string) {
     .from(t.loginCodes)
     .where(and(eq(t.loginCodes.phone, phone), gt(t.loginCodes.createdAt, new Date(Date.now() - 15 * 60_000))));
   if (isDemo(phone)) return;
+  // US numbers only for now: texts abroad cost more and are where SMS-pumping fraud happens.
+  if (!phone.startsWith("+1")) throw new AuthError("Pitchin works with US mobile numbers for now.");
   if ((recent[0]?.n ?? 0) >= 5) throw new AuthError("Too many codes requested. Try again in 15 minutes.");
   const [all] = await db
     .select({ n: dsql<number>`count(*)::int` })
@@ -68,7 +80,12 @@ export async function sendLoginCode(phone: string) {
 
   const expiresAt = new Date(Date.now() + CODE_MINUTES * 60_000);
   if (verifyConfigured()) {
-    await startVerification(phone);
+    try {
+      await startVerification(phone);
+    } catch (e) {
+      console.error(`[login] couldn't text ${phone.slice(0, 5)}…:`, e instanceof Error ? e.message : e);
+      throw new AuthError(textFailedMessage(e));
+    }
     await db.insert(t.loginCodes).values({ phone, codeHash: "twilio-verify", expiresAt });
     return;
   }

@@ -26,8 +26,8 @@
       "distribution": "store",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://staging.pitchin.app",
-        "APP_LINK_DOMAIN": "staging.pitchin.app"
+        "EXPO_PUBLIC_API_URL": "https://staging.getpitchin.app",
+        "APP_LINK_DOMAIN": "staging.getpitchin.app"
       },
       "channel": "preview"
     },
@@ -36,8 +36,8 @@
       "distribution": "store",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://pitchin.app",
-        "APP_LINK_DOMAIN": "pitchin.app"
+        "EXPO_PUBLIC_API_URL": "https://getpitchin.app",
+        "APP_LINK_DOMAIN": "getpitchin.app"
       },
       "channel": "production"
     }

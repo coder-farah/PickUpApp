@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 /** The Pitchin server. Store builds point at production (eas.json sets EXPO_PUBLIC_API_URL). */
 export const API_URL: string = (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? "http://localhost:3000";
 
-export const SUPPORT_EMAIL: string = (Constants.expoConfig?.extra?.supportEmail as string | undefined) ?? "support@pitchin.app";
+export const SUPPORT_EMAIL: string = (Constants.expoConfig?.extra?.supportEmail as string | undefined) ?? "support@getpitchin.app";
 
 const TOKEN_KEY = "pitchin.session";
 

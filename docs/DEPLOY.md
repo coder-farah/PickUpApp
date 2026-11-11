@@ -7,13 +7,13 @@ The website and the app's API are one Next.js server. It needs its database migr
 
 1. **New project > Deploy from GitHub repo**, pick this repository, then set the pre-deploy command and healthcheck above.
 2. **+ New > Database > PostgreSQL**. In the web service's variables, set `DATABASE_URL=${{Postgres.DATABASE_URL}}`.
-3. **Settings > Networking**: generate a domain, or add your own (like `pitchin.app`) and point its DNS at Railway.
+3. **Settings > Networking**: generate a domain, or add your own (like `getpitchin.app`) and point its DNS at Railway.
 4. Set the variables below and deploy.
 5. For staging, add a second environment (Environments > New) with its own database and domain.
 
 | Variable | Value |
 | --- | --- |
-| `APP_URL` | the public URL, like `https://pitchin.app` |
+| `APP_URL` | the public URL, like `https://getpitchin.app` |
 | `TICK_IN_PROCESS` | `1`, so the scheduler runs inside the server every minute. Keep one replica. |
 | `CRON_SECRET` | any long random string (only used if something outside calls `/api/cron/tick`) |
 | `SUPPORT_EMAIL` | where people write in |

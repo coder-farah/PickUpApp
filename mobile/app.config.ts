@@ -68,7 +68,7 @@ const config: ExpoConfig = {
   experiments: { typedRoutes: false },
   extra: {
     apiUrl,
-    supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@pitchin.app",
+    supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "support@getpitchin.app",
     eas: { projectId: process.env.EAS_PROJECT_ID || EAS_PROJECT_ID || undefined },
   },
 };

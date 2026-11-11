@@ -438,7 +438,7 @@ export function InviteFields({ inviter, games }: { inviter: string; games: GameO
         <div className="flex flex-col gap-2">
           <p className="eyebrow">What {firstName ?? "they"} will get</p>
           <p className="max-w-[85%] self-start rounded-[20px] rounded-bl-md bg-surface-2 px-4 py-3 text-[14.5px] leading-snug">
-            {inviter} invited you to Pitchin{withGame && game ? `, and to ${game.title} on ${game.when}` : ", the easy way to find pickup games"}. Join here: pitchin.app/i/…
+            {inviter} invited you to Pitchin{withGame && game ? `, and to ${game.title} on ${game.when}` : ", the easy way to find pickup games"}. Join here: getpitchin.app/i/…
           </p>
         </div>
       )}

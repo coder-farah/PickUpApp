@@ -1,7 +1,7 @@
 export const env = {
   appUrl: (process.env.APP_URL ?? "http://localhost:3000").replace(/\/$/, ""),
   // Shown on /support and /privacy, and in the App Store listing.
-  supportEmail: process.env.SUPPORT_EMAIL ?? "support@pitchin.app",
+  supportEmail: process.env.SUPPORT_EMAIL ?? "support@getpitchin.app",
   cronSecret: process.env.CRON_SECRET ?? "",
   isProd: process.env.NODE_ENV === "production",
   isTest: process.env.NODE_ENV === "test" || !!process.env.VITEST,

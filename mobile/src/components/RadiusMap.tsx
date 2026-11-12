@@ -1,4 +1,5 @@
 import { Pressable, View } from "react-native";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import Svg, { Circle, Defs, Line, RadialGradient, Stop, Text as SvgText } from "react-native-svg";
 import { fonts, useTheme } from "@/theme";
@@ -18,20 +19,43 @@ function bearing(a: { lat: number; lng: number }, b: { lat: number; lng: number 
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
-/** Games plotted around the search center by direction and distance, inside the radius ring (the website's map view). */
-export function RadiusMap({ games, center, miles }: { games: GameCardView[]; center: { label: string; lat: number; lng: number }; miles: number }) {
+/** Web Mercator in points at `zoom`, with 512-point tiles like Mapbox's static images. */
+function project(p: { lat: number; lng: number }, zoom: number) {
+  const world = 512 * 2 ** zoom;
+  const s = Math.sin(toRad(p.lat));
+  return { x: ((p.lng + 180) / 360) * world, y: (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * world };
+}
+
+type StreetMap = { url: string; zoom: number; credit: string };
+
+/**
+ * Games around the search center inside the radius ring. With `map` (a street map zoomed so the radius fills the ring)
+ * each game sits at its real spot; without one, by direction and distance on a plain backdrop.
+ */
+export function RadiusMap({ games, center, miles, map }: { games: GameCardView[]; center: { label: string; lat: number; lng: number }; miles: number; map?: StreetMap | null }) {
   const { c } = useTheme();
   const R = 150;
+  const mid = map ? project(center, map.zoom) : null;
   const pins = games
     .filter((g) => g.lat != null && g.lng != null)
     .map((g) => {
       const p = { lat: g.lat!, lng: g.lng! };
+      if (map && mid) {
+        const q = project(p, map.zoom);
+        return { g, x: Math.min(348, Math.max(12, 180 + q.x - mid.x)), y: Math.min(348, Math.max(12, 180 + q.y - mid.y)) };
+      }
       const d = Math.min(milesBetween(center, p) / miles, 1) * R;
       const a = toRad(bearing(center, p));
       return { g, x: 180 + Math.sin(a) * d, y: 180 - Math.cos(a) * d };
     });
   return (
     <View style={{ borderRadius: 28, overflow: "hidden", backgroundColor: c.night, aspectRatio: 1 }}>
+      {map && (
+        <>
+          <Image source={map.url} style={{ position: "absolute", width: "100%", height: "100%" }} cachePolicy="disk" transition={200} />
+          <View pointerEvents="none" style={{ position: "absolute", width: "100%", height: "100%", backgroundColor: c.night, opacity: 0.35 }} />
+        </>
+      )}
       <Svg width="100%" height="100%" viewBox="0 0 360 360">
         <Defs>
           <RadialGradient id="glow" cx="50%" cy="50%" r="50%">
@@ -40,9 +64,13 @@ export function RadiusMap({ games, center, miles }: { games: GameCardView[]; cen
           </RadialGradient>
         </Defs>
         <Circle cx={180} cy={180} r={R} fill="url(#glow)" stroke="#C8F25A" strokeOpacity={0.5} strokeDasharray="4 6" />
-        <Circle cx={180} cy={180} r={R / 2} fill="none" stroke="#fff" strokeOpacity={0.08} />
-        <Line x1={0} y1={180} x2={360} y2={180} stroke="#fff" strokeOpacity={0.06} />
-        <Line x1={180} y1={0} x2={180} y2={360} stroke="#fff" strokeOpacity={0.06} />
+        {!map && (
+          <>
+            <Circle cx={180} cy={180} r={R / 2} fill="none" stroke="#fff" strokeOpacity={0.08} />
+            <Line x1={0} y1={180} x2={360} y2={180} stroke="#fff" strokeOpacity={0.06} />
+            <Line x1={180} y1={0} x2={180} y2={360} stroke="#fff" strokeOpacity={0.06} />
+          </>
+        )}
         <SvgText x={180} y={180 - R - 8} textAnchor="middle" fill="#fff" fillOpacity={0.5} fontSize={10} fontFamily={fonts.mono}>
           {`${miles} MI`}
         </SvgText>
@@ -61,6 +89,11 @@ export function RadiusMap({ games, center, miles }: { games: GameCardView[]; cen
           {center.label}
         </Mono>
       </Pressable>
+      {map && (
+        <Mono size={9} color="rgba(255,255,255,0.45)" style={{ position: "absolute", right: 16, bottom: 14 }} pointerEvents="none">
+          {map.credit}
+        </Mono>
+      )}
     </View>
   );
 }

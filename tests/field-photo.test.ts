@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { env } from "@/server/env";
-import { fieldPhoto, fieldPhotos } from "@/server/field-photo";
+import { fieldPhoto, fieldPhotos, radiusMap } from "@/server/field-photo";
 
 const dolores = { locationName: "Dolores Park", lat: 37.7596, lng: -122.4269 };
 
@@ -53,5 +53,17 @@ describe("field photos", () => {
     expect(photos[1].url).toContain("mapbox");
     expect(photos[1]).toMatchObject({ field: "Dolores Park", games: 2, code: "a1" });
     expect(fieldPhotos([{ ...dolores, code: "a1" }, { locationName: "Kezar", lat: 37.76, lng: -122.45, code: "k1" }], 1, fixes)).toHaveLength(1);
+  });
+
+  it("zooms the explore street map so the radius fills the ring", () => {
+    const sf = { lat: 37.7749, lng: -122.4194 };
+    expect(radiusMap(sf, 10)).toBeNull();
+    env.mapboxToken = "pk.test";
+    const ten = radiusMap(sf, 10)!;
+    // 10 miles across 150 points at San Francisco's latitude is about zoom 9.17; halving the radius adds one level.
+    expect(ten.zoom).toBeCloseTo(9.17, 1);
+    expect(radiusMap(sf, 5)!.zoom).toBeCloseTo(ten.zoom + 1, 5);
+    expect(ten.url).toContain("/dark-v11/static/-122.41940,37.77490,");
+    expect(ten.url).toContain("/360x360@2x?");
   });
 });

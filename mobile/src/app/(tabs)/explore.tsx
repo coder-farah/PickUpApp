@@ -65,7 +65,7 @@ export default function ExploreScreen() {
         <Loading variant="cards" />
       ) : view === "map" ? (
         <View style={{ gap: 16 }}>
-          <RadiusMap games={data.games} center={data.place} miles={data.miles} />
+          <RadiusMap games={data.games} center={data.place} miles={data.miles} map={data.map} />
           {data.games.length ? <GameList games={data.games} showDay /> : <Body color={c.muted}>No games inside this radius yet.</Body>}
         </View>
       ) : data.games.length === 0 ? (

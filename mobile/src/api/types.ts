@@ -227,6 +227,8 @@ export type DiscoverView = {
   crews: CrewCardView[];
   /** Field photos from these games, for the hero slideshow. */
   photos: FieldPhotoView[];
+  /** A street map for the radius view, zoomed so the radius fills its ring. Absent on older servers. */
+  map?: { url: string; zoom: number; credit: string } | null;
 };
 
 /** A field photo for the home slideshow: the field, its games this week, and the soonest game to open. */

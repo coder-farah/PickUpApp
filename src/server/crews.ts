@@ -65,6 +65,34 @@ export async function setCrewRole(actor: SessionUser, slug: string, userId: stri
   });
 }
 
+/** An https link to the crew's group chat, or null when it's cleared. */
+export function cleanChatUrl(raw: string | null | undefined): string | null {
+  const v = (raw ?? "").trim();
+  if (!v) return null;
+  let url: URL;
+  try {
+    url = new URL(/^[a-z]+:\/\//i.test(v) ? v : `https://${v}`);
+  } catch {
+    throw new GameError("That doesn't look like a link.");
+  }
+  if (url.protocol !== "https:" || !url.hostname.includes(".") || v.length > 300) throw new GameError("That doesn't look like a link.");
+  return url.toString();
+}
+
+/** Organizers set or clear the crew's group chat link. */
+export async function setCrewChat(actor: SessionUser, slug: string, raw: string | null) {
+  const [g] = await db.select().from(t.groups).where(eq(t.groups.slug, slug));
+  if (!g) throw new GameError("This crew doesn't exist.");
+  const [mine] = await db
+    .select({ role: t.groupMembers.role })
+    .from(t.groupMembers)
+    .where(and(eq(t.groupMembers.groupId, g.id), eq(t.groupMembers.userId, actor.id)));
+  if (mine?.role !== "organizer") throw new GameError("Only organizers can change the group chat.");
+  const chatUrl = cleanChatUrl(raw);
+  await db.update(t.groups).set({ chatUrl }).where(eq(t.groups.id, g.id));
+  return g;
+}
+
 /** Member counts and weekly times for crew cards. */
 export async function crewStats(groupIds: string[]) {
   if (groupIds.length === 0) return new Map<string, { members: number; schedules: string | null }>();

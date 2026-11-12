@@ -14,7 +14,7 @@ import * as engine from "@/server/engine";
 import { dispatchPending } from "@/server/notify";
 import { materializeSchedule } from "@/server/scheduler";
 import { createCrew, createGame, rulesSchema } from "@/server/hosting";
-import { joinCrew, leaveCrew } from "@/server/crews";
+import { joinCrew, leaveCrew, setCrewChat } from "@/server/crews";
 import { normalizePhone } from "@/lib/phone";
 import type { ActionResult } from "@/components/client";
 
@@ -326,6 +326,18 @@ export async function toggleScheduleAction(_: ActionResult, data: FormData): Pro
       .delete(t.games)
       .where(and(eq(t.games.scheduleId, scheduleId), eq(t.games.status, "scheduled"), gt(t.games.startsAt, new Date())));
   revalidatePath(`/groups/${row.group.slug}`);
+  return { ok: true };
+}
+
+export async function setCrewChatAction(_: ActionResult, data: FormData): Promise<ActionResult> {
+  const user = await me();
+  const slug = str(data, "slug");
+  try {
+    await setCrewChat(user, slug, str(data, "chatUrl") || null);
+  } catch (err) {
+    return failure(err);
+  }
+  revalidatePath(`/groups/${slug}`);
   return { ok: true };
 }
 

@@ -30,6 +30,7 @@ export async function loadCrew(slug: string, viewerId: string | null): Promise<C
       visibility: g.visibility,
       shareUrl: `${env.appUrl}/groups/${g.slug}`,
       inviteUrl: p.isOrganizer && g.inviteCode ? `${env.appUrl}/join/${g.inviteCode}` : null,
+      chatUrl: p.isMember ? g.chatUrl : null,
     },
     members: p.members.map((m) => ({ ...face({ id: m.id, name: m.name, v: m.v }), role: m.role })),
     schedules: p.schedules.map((s) => ({ id: s.id, label: scheduleLabel(`${s.weekday}@${s.startTime}`), active: s.active })),

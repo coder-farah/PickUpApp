@@ -8,7 +8,8 @@ import { deleteAccount } from "@/server/account";
 import { createCrew, createGame, editGame } from "@/server/hosting";
 import { gameIcs } from "@/lib/ics";
 import { addCohost, cohostCandidates, makeHost } from "@/server/cohosts";
-import { joinCrew, leaveCrew, setCrewRole } from "@/server/crews";
+import { cleanChatUrl, joinCrew, leaveCrew, setCrewChat, setCrewRole } from "@/server/crews";
+import { loadCrew } from "@/server/loaders";
 import { dispatchPending, queueNotifications } from "@/server/notify";
 import { appleClientSecret } from "@/server/apple";
 import { env } from "@/server/env";
@@ -184,6 +185,25 @@ describe("hosting from the app", () => {
     const page = await getGamePage(code!, host.id);
     expect(page?.game).toMatchObject({ title: "Tuesday 7v7", locationName: "Bayfront", hostId: host.id });
     expect(page?.game.scheduleId).toBeTruthy();
+  });
+
+  it("shows the crew's group chat link to members only, and lets organizers set it", async () => {
+    const [host, member, outsider] = [await makeUser(), await makeUser(), await makeUser()];
+    const { slug } = await createCrew(host, { name: "Chat Crew", locationName: "Kezar", weekday: 3, startTime: "18:00", rules: { capacity: 14, minPlayers: 10, claimMinutes: 30, guestsAllowed: true } });
+    await joinCrew(member.id, slug, null);
+    await expect(setCrewChat(member, slug, "https://chat.whatsapp.com/abc")).rejects.toThrow("Only organizers");
+    await expect(setCrewChat(host, slug, "not a link")).rejects.toThrow("doesn't look like a link");
+    await expect(setCrewChat(host, slug, "javascript:alert(1)")).rejects.toThrow("doesn't look like a link");
+
+    await setCrewChat(host, slug, "chat.whatsapp.com/abc");
+    expect((await loadCrew(slug, member.id)).crew.chatUrl).toBe("https://chat.whatsapp.com/abc");
+    expect((await loadCrew(slug, host.id)).crew.chatUrl).toBe("https://chat.whatsapp.com/abc");
+    expect((await loadCrew(slug, outsider.id)).crew.chatUrl).toBeNull();
+    expect((await loadCrew(slug, null)).crew.chatUrl).toBeNull();
+
+    await setCrewChat(host, slug, "  ");
+    expect((await loadCrew(slug, member.id)).crew.chatUrl).toBeNull();
+    expect(() => cleanChatUrl("http://example.com")).toThrow("doesn't look like a link");
   });
 
   it("lets organizers make others organizers, and keeps at least one", async () => {

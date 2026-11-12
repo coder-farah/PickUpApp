@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { CalendarPlus, Lock, MapPin, Pause, Play, Plus, Repeat, Users } from "lucide-react";
+import { CalendarPlus, Lock, MapPin, MessageCircle, Pause, Play, Plus, Repeat, Users } from "lucide-react";
 import { getCurrentUser } from "@/server/auth";
 import { getGroupPage } from "@/server/queries";
 import { absoluteUrl } from "@/server/notify";
-import { addScheduleAction, joinGroupAction, leaveGroupAction, toggleScheduleAction } from "@/app/actions";
+import { addScheduleAction, joinGroupAction, leaveGroupAction, setCrewChatAction, toggleScheduleAction } from "@/app/actions";
 import { ActionForm, CopyButton, SubmitButton } from "@/components/client";
 import { GameCard } from "@/components/GameCard";
 import { Avatar, Faces, initials } from "@/components/Avatar";
 import { NightHero } from "@/components/NightHero";
-import { ButtonLink, Card, EmptyState, Field, Input, SectionTitle } from "@/components/ui";
+import { ButtonLink, buttonClass, Card, EmptyState, Field, Input, SectionTitle } from "@/components/ui";
 import { RulesFields, WeeklyFields } from "@/components/RulesFields";
 import { sportLabel } from "@/lib/sports";
 import { fmtHHMM, fmtHours, WEEKDAYS } from "@/lib/time";
@@ -70,6 +70,11 @@ export default async function GroupPage({ params, searchParams }: Props) {
                   <CalendarPlus className="size-4" /> One-time game
                 </ButtonLink>
               </>
+            )}
+            {isMember && group.chatUrl && (
+              <a href={group.chatUrl} target="_blank" rel="noopener noreferrer" className={buttonClass("outline-night")}>
+                <MessageCircle className="size-4" /> Group chat
+              </a>
             )}
             {!isMember && (
               <ActionForm action={joinGroupAction} hidden={{ group: group.slug }}>
@@ -181,6 +186,18 @@ export default async function GroupPage({ params, searchParams }: Props) {
             ))}
             {members.length > 30 && <p className="px-4 py-3 text-[13px] text-muted">and {members.length - 30} more</p>}
           </Card>
+          {isOrganizer && (
+            <details className="rounded-[var(--radius-card)] border border-dashed border-line-strong">
+              <summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-[14px] font-medium text-pitch">
+                <MessageCircle className="size-4" /> {group.chatUrl ? "Change group chat link" : "Add group chat link"}
+              </summary>
+              <ActionForm action={setCrewChatAction} hidden={{ slug: group.slug }} className="gap-3 border-t border-line p-4">
+                <Input name="chatUrl" type="url" defaultValue={group.chatUrl ?? ""} placeholder="https://chat.whatsapp.com/…" aria-label="Group chat link" />
+                <p className="text-[13px] text-muted">Only members see it. Leave it empty to remove it.</p>
+                <SubmitButton size="sm" className="self-start">Save</SubmitButton>
+              </ActionForm>
+            </details>
+          )}
           {isMember && (
             <ActionForm action={leaveGroupAction} hidden={{ groupId: group.id }}>
               <SubmitButton variant="ghost" size="sm" className="self-start text-muted">

@@ -1,0 +1,1 @@
+ALTER TABLE "groups" ADD COLUMN "chat_url" text;

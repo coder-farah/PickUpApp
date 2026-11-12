@@ -144,6 +144,8 @@ export type CrewView = {
     shareUrl: string;
     /** Only for organizers of invite-only crews */
     inviteUrl: string | null;
+    /** The crew's group chat. Only for members. */
+    chatUrl: string | null;
   };
   members: (FaceView & { role: "organizer" | "member" })[];
   schedules: { id: string; label: string; active: boolean }[];

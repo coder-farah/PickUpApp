@@ -1,6 +1,7 @@
-import { Alert, Pressable, View } from "react-native";
+import { Alert, Linking, Pressable, View } from "react-native";
+import { MessageCircle } from "lucide-react-native";
 import { useLocalSearchParams } from "expo-router";
-import { useCrew, useCrewAction, useCrewRole } from "@/api/hooks";
+import { useCrew, useCrewAction, useCrewChat, useCrewRole } from "@/api/hooks";
 import { useAuth } from "@/lib/auth";
 import { needsSignIn } from "@/lib/intent";
 import { showMenu } from "@/lib/menu";
@@ -20,6 +21,7 @@ export default function CrewScreen() {
   const { data, isLoading, error, refetch, isRefetching } = useCrew(slug);
   const act = useCrewAction(slug);
   const setRole = useCrewRole(slug);
+  const setChat = useCrewChat(slug);
   const { user } = useAuth();
   if (isLoading) return <Loading variant="hero" />;
   if (!data) return <ErrorView message={(error as Error)?.message ?? "Couldn't load this crew."} onRetry={() => void refetch()} />;
@@ -38,6 +40,19 @@ export default function CrewScreen() {
       Alert.alert("The only organizer", "A crew needs an organizer. Make someone else one first.");
     }
   };
+
+  const openChat = () => crew.chatUrl && void Linking.openURL(crew.chatUrl).catch(() => Alert.alert("Couldn't open the chat"));
+  const saveChat = (url: string | null) => setChat.mutate(url, { onError: (e) => Alert.alert("Couldn't save that", e.message) });
+  const editChat = () =>
+    Alert.prompt("Group chat link", "Only members see it.", [{ text: "Cancel", style: "cancel" }, { text: "Save", onPress: (v?: string) => v?.trim() && saveChat(v) }], "plain-text", crew.chatUrl ?? "", "url");
+  const chatMenu = () =>
+    crew.chatUrl
+      ? showMenu("Group chat", [
+          { label: "Open chat", onPress: openChat },
+          { label: "Change link", onPress: editChat },
+          { label: "Remove link", destructive: true, onPress: () => saveChat(null) },
+        ])
+      : editChat();
 
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
@@ -58,14 +73,25 @@ export default function CrewScreen() {
           <Body size={14} color="rgba(255,255,255,0.65)" style={{ marginTop: 8 }}>
             {[crew.schedule, crew.homeField, crew.area].filter(Boolean).join(" · ")}
           </Body>
-          <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 20 }}>
             {data.isMember ? (
               <View style={{ height: 44, paddingHorizontal: 18, borderRadius: 22, backgroundColor: c.lime, justifyContent: "center" }}>
                 <Body weight="semibold" color={c.limeInk}>
                   {data.isOrganizer ? "You organize this" : "You're a member"}
                 </Body>
               </View>
-            ) : (
+            ) : null}
+            {data.isMember && (crew.chatUrl || data.isOrganizer) ? (
+              <Button
+                title={crew.chatUrl ? "Group chat" : "Add group chat"}
+                variant="outlineNight"
+                icon={<MessageCircle size={17} color="#FFFFFF" />}
+                loading={setChat.isPending}
+                onPress={data.isOrganizer ? chatMenu : openChat}
+                style={{ height: 44 }}
+              />
+            ) : null}
+            {!data.isMember && (
               <Button title="Join the crew" variant="lime" loading={act.isPending} onPress={() => needsSignIn({ path: `/groups/${slug}`, crew: { slug } }) || act.mutate({ action: "join" }, { onError: (e) => Alert.alert("Couldn't join", e.message) })} />
             )}
           </View>

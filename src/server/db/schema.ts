@@ -98,6 +98,8 @@ export const groups = pgTable("groups", {
   lng: doublePrecision("lng"),
   timezone: text("timezone").default("America/Los_Angeles").notNull(),
   visibility: visibilityEnum("visibility").default("public").notNull(),
+  /** The crew's own group chat (WhatsApp, GroupMe…). Shown to members only. */
+  chatUrl: text("chat_url"),
   inviteCode: text("invite_code").notNull().unique(),
   createdBy: uuid("created_by").notNull().references(() => users.id),
   createdAt: createdAt(),

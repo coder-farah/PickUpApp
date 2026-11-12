@@ -59,6 +59,14 @@ export function useCrewRole(slug: string) {
   });
 }
 
+export function useCrewChat(slug: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (chatUrl: string | null) => api<CrewView>(`/api/v1/crews/${encodeURIComponent(slug)}`, { method: "PATCH", body: { chatUrl } }),
+    onSuccess: (data) => qc.setQueryData(keys.crew(data.crew.slug), data),
+  });
+}
+
 export function useCrewAction(slug: string) {
   const qc = useQueryClient();
   return useMutation({

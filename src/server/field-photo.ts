@@ -54,3 +54,24 @@ export function fieldPhotos(games: { code: string; locationName: string; lat: nu
   const own = (p: { credit: string | null }) => (p.credit === MAPBOX_CREDIT ? 1 : 0);
   return [...byField.values()].sort((a, b) => own(a) - own(b)).slice(0, max);
 }
+
+/** Points across the explore map's square, and the radius ring's size in those points (the app draws both). */
+export const RADIUS_MAP_SIZE = 360;
+export const RADIUS_MAP_RING = 150;
+
+/**
+ * A street map behind the explore radius view, zoomed so `miles` spans the ring. The app plots each game on it with the
+ * same zoom (Web Mercator, 512-point tiles, as Mapbox's static images use). Null without a Mapbox token.
+ */
+export function radiusMap(center: { lat: number; lng: number }, miles: number) {
+  if (!env.mapboxToken) return null;
+  const metersPerPointAtZoom0 = 78271.517 * Math.cos((center.lat * Math.PI) / 180);
+  const zoom = Math.min(18, Math.max(1, Math.log2((metersPerPointAtZoom0 * RADIUS_MAP_RING) / (miles * 1609.344))));
+  const at = `${center.lng.toFixed(5)},${center.lat.toFixed(5)},${zoom.toFixed(3)},0`;
+  const size = RADIUS_MAP_SIZE;
+  return {
+    url: `https://api.mapbox.com/styles/v1/mapbox/dark-v11/static/${at}/${size}x${size}@2x?attribution=false&logo=false&access_token=${encodeURIComponent(env.mapboxToken)}`,
+    zoom,
+    credit: "© Mapbox © OpenStreetMap",
+  };
+}

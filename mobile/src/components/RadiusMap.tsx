@@ -1,7 +1,7 @@
 import { Pressable, View } from "react-native";
 import { Image } from "expo-image";
 import { router } from "expo-router";
-import Svg, { Circle, Defs, Line, RadialGradient, Stop, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, Defs, Line, RadialGradient, Rect, Stop, Text as SvgText, G } from "react-native-svg";
 import { fonts, useTheme } from "@/theme";
 import type { GameCardView } from "@/api/types";
 import { Mono } from "./ui";
@@ -42,7 +42,7 @@ export function RadiusMap({ games, center, miles, map }: { games: GameCardView[]
       const p = { lat: g.lat!, lng: g.lng! };
       if (map && mid) {
         const q = project(p, map.zoom);
-        return { g, x: Math.min(348, Math.max(12, 180 + q.x - mid.x)), y: Math.min(348, Math.max(12, 180 + q.y - mid.y)) };
+        return { g, x: Math.min(330, Math.max(30, 180 + q.x - mid.x)), y: Math.min(348, Math.max(12, 180 + q.y - mid.y)) };
       }
       const d = Math.min(milesBetween(center, p) / miles, 1) * R;
       const a = toRad(bearing(center, p));
@@ -75,14 +75,20 @@ export function RadiusMap({ games, center, miles, map }: { games: GameCardView[]
           {`${miles} MI`}
         </SvgText>
         <Circle cx={180} cy={180} r={6} fill="#C8F25A" />
-        {pins.map(({ g, x, y }) => (
-          <Circle key={g.id} cx={x} cy={y} r={12} fill={g.my?.status === "in" ? "#C8F25A" : "#fff"} onPress={() => router.push(`/g/${g.code}`)} />
-        ))}
-        {pins.map(({ g, x, y }) => (
-          <SvgText key={`${g.id}t`} x={x} y={y + 3.5} textAnchor="middle" fontSize={10} fontFamily={fonts.semibold} fill="#0C0D0C" onPress={() => router.push(`/g/${g.code}`)}>
-            {g.time.split(":")[0]}
-          </SvgText>
-        ))}
+        {pins.map(({ g, x, y }) => {
+          // "7PM", or "7:30PM" when it isn't on the hour.
+          const label = `${g.time.replace(/:00$/, "")}${g.ampm}`;
+          const w = label.length * 6.6 + 14;
+          const open = () => router.push(`/g/${g.code}`);
+          return (
+            <G key={g.id} onPress={open}>
+              <Rect x={x - w / 2} y={y - 11} width={w} height={22} rx={11} fill={g.my?.status === "in" ? "#C8F25A" : "#fff"} />
+              <SvgText x={x} y={y + 3.8} textAnchor="middle" fontSize={11} fontFamily={fonts.semibold} fill="#0C0D0C">
+                {label}
+              </SvgText>
+            </G>
+          );
+        })}
       </Svg>
       <Pressable pointerEvents="none" style={{ position: "absolute", left: 16, bottom: 14 }}>
         <Mono size={10.5} color="rgba(255,255,255,0.5)">
